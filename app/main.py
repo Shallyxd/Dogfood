@@ -1,6 +1,7 @@
 import csv
 import io
 import secrets
+import statistics
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -10,8 +11,9 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import engine, Base, SessionLocal, get_db
-from app.models import Event, Track, Team, TeamMember, Project, User, Judge, Assignment, Score
+from app.models import Event, Track, Team, TeamMember, Project, User, Judge, Assignment, Score, Result
 from app.seed import run_seed, print_seed_header
+from app.judging.normalise import normalise
 from app.auth import (
     SessionAuthMiddleware,
     get_current_user,
@@ -625,6 +627,125 @@ async def organize_rubric_post(
     return RedirectResponse(url="/organize", status_code=303)
 
 
+@app.post("/organize/publish")
+async def publish_results(
+    request: Request,
+    user: User = Depends(require_organizer),
+    db: Session = Depends(get_db),
+):
+    event = db.query(Event).first()
+    # Immutable: if a Result row exists for a project, never overwrite it (skip or 409)
+    existing_count = db.query(Result).count()
+    if existing_count > 0:
+        if "application/json" in request.headers.get("accept", "") or "application/json" in request.headers.get("content-type", ""):
+            return JSONResponse(status_code=409, content={"detail": "Results already published"})
+        return RedirectResponse(url="/results", status_code=303)
+
+    rubric = (event.rubric if event and event.rubric else None) or {
+        "functionality": 1.0 / 3.0,
+        "quality": 1.0 / 3.0,
+        "innovation": 1.0 / 3.0,
+    }
+
+    scores_rows = db.query(Score).all()
+    projects_rows = db.query(Project).all()
+
+    judge_proj_crit = {}
+    for s in scores_rows:
+        judge_proj_crit.setdefault(s.judge_fixture_id, {}).setdefault(
+            s.project_id, {}
+        )[s.criterion] = s.value
+
+    scores = {}
+    for j_id, p_map in judge_proj_crit.items():
+        for p_id, crits in p_map.items():
+            w_sum = sum(crits.get(c, 0) * rubric.get(c, 1.0 / 3.0) for c in crits)
+            scores.setdefault(j_id, {})[p_id] = w_sum
+
+    proj_raw = {}
+    for j_id, p_scores in scores.items():
+        for p_id, s in p_scores.items():
+            proj_raw.setdefault(p_id, []).append(s)
+
+    raw_scores = {
+        p.id: (statistics.mean(proj_raw[p.id]) if p.id in proj_raw else 0.0)
+        for p in projects_rows
+    }
+
+    norm_scores = normalise(scores)
+
+    # Rank projects: higher normalised_score is better (1 is top)
+    ranked_projects = sorted(
+        projects_rows,
+        key=lambda p: (norm_scores.get(p.id, 0.0), raw_scores.get(p.id, 0.0), p.id),
+        reverse=True,
+    )
+
+    now = datetime.now(timezone.utc)
+    for rank_idx, p in enumerate(ranked_projects, start=1):
+        # Double check no existing result
+        existing = db.query(Result).filter(Result.project_id == p.id).first()
+        if not existing:
+            db.add(
+                Result(
+                    project_id=p.id,
+                    raw_score=raw_scores.get(p.id, 0.0),
+                    normalised_score=norm_scores.get(p.id, 0.0),
+                    rank=rank_idx,
+                    snapshot_at=now,
+                )
+            )
+
+    if event:
+        event.results_public = True
+    db.commit()
+
+    if "application/json" in request.headers.get("accept", "") or "application/json" in request.headers.get("content-type", ""):
+        return JSONResponse(status_code=200, content={"status": "published", "count": len(ranked_projects)})
+    return RedirectResponse(url="/results", status_code=303)
+
+
+@app.get("/results", response_class=HTMLResponse)
+async def results_page(request: Request, db: Session = Depends(get_db)):
+    event = db.query(Event).first()
+    results = (
+        db.query(Result)
+        .options(
+            joinedload(Result.project).joinedload(Project.track),
+            joinedload(Result.project).joinedload(Project.scores),
+        )
+        .order_by(Result.rank.asc())
+        .all()
+    )
+
+    is_published = len(results) > 0 and (event.results_public if event else True)
+
+    results_data = []
+    if is_published:
+        for r in results:
+            distinct_judges = (
+                set(s.judge_fixture_id for s in r.project.scores) if r.project else set()
+            )
+            results_data.append({
+                "rank": r.rank,
+                "project": r.project,
+                "normalised_score": r.normalised_score,
+                "raw_score": r.raw_score,
+                "reviews_count": len(distinct_judges),
+                "snapshot_at": r.snapshot_at,
+            })
+
+    return templates.TemplateResponse(
+        request=request,
+        name="results.html",
+        context={
+            "published": is_published,
+            "results": results_data,
+            "user": request.state.user,
+        },
+    )
+
+
 @app.get("/api/export.csv")
 def export_csv(
     user: User = Depends(require_organizer),
@@ -641,6 +762,8 @@ def export_csv(
         "avg_quality",
         "avg_innovation",
         "avg_total",
+        "normalised_score",
+        "rank",
     ])
 
     event = db.query(Event).first()
@@ -649,6 +772,9 @@ def export_csv(
         "quality": 1.0 / 3.0,
         "innovation": 1.0 / 3.0,
     }
+
+    results_map = {r.project_id: r for r in db.query(Result).all()}
+    is_published = len(results_map) > 0 and (event.results_public if event else True)
 
     projects = (
         db.query(Project)
@@ -686,6 +812,13 @@ def export_csv(
         w_innov = float(rubric.get("innovation", 1.0 / 3.0))
         avg_total = (avg_func * w_func) + (avg_qual * w_qual) + (avg_innov * w_innov)
 
+        norm_score_str = ""
+        rank_str = ""
+        if is_published and p.id in results_map:
+            res = results_map[p.id]
+            norm_score_str = f"{res.normalised_score:.2f}"
+            rank_str = str(res.rank)
+
         writer.writerow([
             p.id,
             p.title,
@@ -695,6 +828,8 @@ def export_csv(
             f"{avg_qual:.2f}",
             f"{avg_innov:.2f}",
             f"{avg_total:.2f}",
+            norm_score_str,
+            rank_str,
         ])
 
     return Response(

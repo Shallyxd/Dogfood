@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Results — DOGFOOD 2026{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+  <h1 style="margin:0;">Hackathon Results</h1>
+  {% if published %}
+    <span class="role-badge" style="background:#e8f5e9; color:#2e7d32;">Snapshot Published</span>
+  {% endif %}
+</div>
+
+{% if not published %}
+  <div class="alert alert-warning">
+    <strong>Results not published yet.</strong>
+    <p style="margin: 6px 0 0 0;">Judging is ongoing. Check back once the organizer publishes final rankings.</p>
+  </div>
+{% else %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th style="width:70px;">Rank</th>
+        <th>Project Title</th>
+        <th>Track</th>
+        <th>Normalised Score</th>
+        <th>Reviews</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in results %}
+      <tr>
+        <td><strong>#{{ r.rank }}</strong></td>
+        <td>
+          <a href="/projects/{{ r.project.id }}" style="font-weight:600; color:#0366d6; text-decoration:none;">
+            {{ r.project.title }}
+          </a>
+        </td>
+        <td>{{ r.project.track.name if r.project and r.project.track else (r.project.track_id if r.project else 'N/A') }}</td>
+        <td><span class="role-badge" style="background:#e8f5e9; color:#2e7d32; font-size:0.95rem;">{{ "%.2f"|format(r.normalised_score) }}</span></td>
+        <td>{{ r.reviews_count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+
+{% endblock %}

@@ -5,8 +5,11 @@
 {% block content %}
 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
   <h1 style="margin:0;">Organizer Dashboard</h1>
-  <div style="display:flex; gap:10px;">
-    <a href="/api/export.csv" class="btn btn-primary">Download Scores CSV</a>
+  <div style="display:flex; gap:10px; align-items:center;">
+    <form method="post" action="/organize/publish" style="margin:0;">
+      <button type="submit" class="btn btn-primary" onclick="return confirm('Publish results? This will snapshot rankings and cannot be undone.');">Publish Results</button>
+    </form>
+    <a href="/api/export.csv" class="btn">Download Scores CSV</a>
     <a href="/organize/rubric" class="btn">Rubric Weights</a>
   </div>
 </div>
