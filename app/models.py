@@ -91,6 +91,7 @@ class Project(Base):
     scores = relationship("Score", back_populates="project")
     assignments = relationship("Assignment", back_populates="project")
     result = relationship("Result", back_populates="project", uselist=False)
+    review_events = relationship("ReviewEvent", back_populates="project", order_by="ReviewEvent.opened_at")
 
 
 class Judge(Base):
@@ -158,3 +159,15 @@ class Result(Base):
     snapshot_at = Column(DateTime, nullable=False)
 
     project = relationship("Project", back_populates="result")
+ 
+ 
+class ReviewEvent(Base):
+    __tablename__ = "review_event"
+ 
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    judge_fixture_id = Column(String, nullable=False, index=True)
+    project_id = Column(String, ForeignKey("project.id"), nullable=False, index=True)
+    artefact = Column(String, nullable=False)  # repo | description
+    opened_at = Column(DateTime, nullable=False)
+ 
+    project = relationship("Project", back_populates="review_events")

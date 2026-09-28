@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import engine, Base, SessionLocal, get_db
-from app.models import Event, Track, Team, TeamMember, Project, User, Judge, Assignment, Score, Result
+from app.models import Event, Track, Team, TeamMember, Project, User, Judge, Assignment, Score, Result, ReviewEvent
 from app.seed import run_seed, print_seed_header
 from app.judging.normalise import normalise
 from app.auth import (
@@ -215,11 +215,51 @@ async def project_detail(project_id: str, request: Request, db: Session = Depend
             context={"user": request.state.user, "detail": "Project not found"},
             status_code=404,
         )
+
+    user = request.state.user
+    if user and user.role == "judge" and getattr(user, "judge_profile", None):
+        me = user.judge_profile.fixture_judge_id
+        db.add(
+            ReviewEvent(
+                judge_fixture_id=me,
+                project_id=project.id,
+                artefact="description",
+                opened_at=datetime.now(timezone.utc),
+            )
+        )
+        db.commit()
+
     return templates.TemplateResponse(
         request=request,
         name="project_detail.html",
         context={"project": project, "user": request.state.user},
     )
+
+
+@app.get("/go/{project_id}/repo")
+async def go_project_repo(
+    project_id: str,
+    user: User = Depends(require_judge),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    me = user.judge_profile.fixture_judge_id
+    db.add(
+        ReviewEvent(
+            judge_fixture_id=me,
+            project_id=project.id,
+            artefact="repo",
+            opened_at=datetime.now(timezone.utc),
+        )
+    )
+    db.commit()
+
+    if not project.repo_url:
+        return RedirectResponse(url=f"/projects/{project.id}", status_code=303)
+    return RedirectResponse(url=project.repo_url, status_code=303)
 
 
 # --- Teams ---
@@ -342,6 +382,89 @@ def judge_scores(
     ]
 
 
+def compute_judge_calibration(db: Session, fixture_id: str, rubric: dict) -> dict:
+    scores_rows = db.query(Score).all()
+    if not scores_rows:
+        return {
+            "has_data": False,
+            "message": "Not enough data yet — anchors will appear after your first reviews.",
+        }
+
+    judge_proj_crit = {}
+    for s in scores_rows:
+        judge_proj_crit.setdefault(s.judge_fixture_id, {}).setdefault(
+            s.project_id, {}
+        )[s.criterion] = s.value
+
+    scores = {}
+    for j_id, p_map in judge_proj_crit.items():
+        for p_id, crits in p_map.items():
+            w_sum = sum(crits.get(c, 0) * rubric.get(c, 1.0 / 3.0) for c in crits)
+            scores.setdefault(j_id, {})[p_id] = w_sum
+
+    my_scores = scores.get(fixture_id, {})
+    if len(my_scores) < 2:
+        return {
+            "has_data": False,
+            "message": "Not enough data yet — anchors will appear after your first reviews.",
+        }
+
+    my_vals = list(my_scores.values())
+    judge_mean = statistics.mean(my_vals)
+    judge_std = statistics.stdev(my_vals)
+    n_reviews = len(my_vals)
+
+    all_scores = [s for j, p_scores in scores.items() for s in p_scores.values()]
+    pool_mean = statistics.mean(all_scores)
+    pool_std = statistics.stdev(all_scores) if len(all_scores) > 1 else 0.0
+
+    diff = judge_mean - pool_mean
+    if diff < -0.05:
+        comp_text = f"You score ~{abs(diff):.1f} harsher than average."
+    elif diff > 0.05:
+        comp_text = f"You score ~{abs(diff):.1f} more lenient than average."
+    else:
+        comp_text = "You score ~aligned with average."
+
+    scale_text = f"Your scale: mean {judge_mean:.1f} ± {judge_std:.1f} across {n_reviews} reviews — pool: {pool_mean:.1f} ± {pool_std:.1f}. {comp_text}"
+
+    # Anchor cards: min 3 reviews across pool
+    proj_totals = {}
+    for j, p_map in scores.items():
+        for p, total in p_map.items():
+            proj_totals.setdefault(p, []).append(total)
+
+    eligible = {}
+    for p, vals in proj_totals.items():
+        if len(vals) >= 3:
+            eligible[p] = statistics.mean(vals)
+
+    anchors = None
+    if eligible:
+        projects_dict = {p.id: p.title for p in db.query(Project).all()}
+        sorted_by_mean = sorted(eligible.items(), key=lambda x: (x[1], x[0]), reverse=True)
+        high_id, high_mean = sorted_by_mean[0]
+        low_id, low_mean = sorted_by_mean[-1]
+        anchors = {
+            "highest": {
+                "id": high_id,
+                "title": projects_dict.get(high_id, high_id),
+                "mean": high_mean,
+            },
+            "lowest": {
+                "id": low_id,
+                "title": projects_dict.get(low_id, low_id),
+                "mean": low_mean,
+            },
+        }
+
+    return {
+        "has_data": True,
+        "scale_text": scale_text,
+        "anchors": anchors,
+    }
+
+
 @app.get("/judge", response_class=HTMLResponse)
 async def judge_dashboard(
     request: Request,
@@ -355,6 +478,8 @@ async def judge_dashboard(
         "quality": 1.0 / 3.0,
         "innovation": 1.0 / 3.0,
     }
+
+    calibration = compute_judge_calibration(db, me, rubric)
 
     assignments = (
         db.query(Assignment)
@@ -388,6 +513,7 @@ async def judge_dashboard(
         name="judge.html",
         context={
             "fixture_id": me,
+            "calibration": calibration,
             "assignments": assignment_data,
             "rubric": rubric,
             "user": request.state.user,
@@ -503,18 +629,38 @@ async def organize_dashboard(
 
     projects = (
         db.query(Project)
-        .options(joinedload(Project.track), joinedload(Project.scores))
+        .options(
+            joinedload(Project.track),
+            joinedload(Project.scores),
+            joinedload(Project.assignments),
+            joinedload(Project.review_events),
+        )
         .all()
     )
     project_reviews = []
     for p in projects:
         unique_judges = set(s.judge_fixture_id for s in p.scores)
+        assigned_count = len(p.assignments)
+        reviewed_count = len(unique_judges)
+
+        # Per-project receipt line (which artefacts each judge opened, when)
+        judge_events = {}
+        for ev in sorted(p.review_events, key=lambda x: x.opened_at):
+            t_str = ev.opened_at.strftime("%H:%M:%S UTC")
+            judge_events.setdefault(ev.judge_fixture_id, []).append(f"{ev.artefact} ({t_str})")
+
+        receipt_parts = [f"{j}: {', '.join(items)}" for j, items in judge_events.items()]
+        receipt_line = " | ".join(receipt_parts) if receipt_parts else ""
+
         project_reviews.append({
             "id": p.id,
             "title": p.title,
             "track": p.track,
             "track_id": p.track_id,
-            "reviews_count": len(unique_judges),
+            "reviewed_count": reviewed_count,
+            "assigned_count": assigned_count,
+            "reviews_count": reviewed_count,
+            "receipt_line": receipt_line,
         })
 
     return templates.TemplateResponse(

@@ -65,19 +65,27 @@
       <th>Project ID</th>
       <th>Title</th>
       <th>Track</th>
-      <th>Reviews Completed</th>
+      <th>Review Status</th>
+      <th>Review Receipts</th>
     </tr>
   </thead>
   <tbody>
     {% for p in project_reviews %}
     <tr>
-      <td>{{ p.id }}</td>
+      <td><strong>{{ p.id }}</strong></td>
       <td><a href="/projects/{{ p.id }}" style="color:#0366d6; text-decoration:none;">{{ p.title }}</a></td>
       <td>{{ p.track.name if p.track else p.track_id }}</td>
       <td>
-        <span class="role-badge" style="{% if p.reviews_count >= 3 %}background:#e8f5e9; color:#2e7d32;{% else %}background:#f0f0f0; color:#555;{% endif %}">
-          {{ p.reviews_count }} reviews
+        <span class="role-badge" style="{% if p.reviewed_count == p.assigned_count and p.assigned_count > 0 %}background:#e8f5e9; color:#2e7d32;{% else %}background:#fff3e0; color:#e65100;{% endif %}">
+          reviewed by {{ p.reviewed_count }} of {{ p.assigned_count }} assigned judges
         </span>
+      </td>
+      <td>
+        {% if p.receipt_line %}
+          <div style="font-size:0.85rem; color:#333; font-family:monospace;">{{ p.receipt_line }}</div>
+        {% else %}
+          <span style="color:#888; font-size:0.85rem; font-style:italic;">No artefacts opened yet</span>
+        {% endif %}
       </td>
     </tr>
     {% endfor %}

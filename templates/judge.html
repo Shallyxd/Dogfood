@@ -15,6 +15,32 @@
   Innovation: {{ "%.2f"|format(rubric.innovation) }}
 </div>
 
+<div class="detail-card" style="margin-bottom:24px; background:#f8fafc; border-left:4px solid #0366d6;">
+  <h3 style="margin-top:0; margin-bottom:10px; font-size:1.15rem; color:#1a1f36;">Calibration Panel</h3>
+  {% if calibration.has_data %}
+    <p style="margin:0 0 16px 0; font-size:1rem; color:#24292e;">
+      {{ calibration.scale_text }}
+    </p>
+    {% if calibration.anchors %}
+    <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
+      <div style="flex:1; min-width:220px; padding:12px 16px; background:#fff; border:1px solid #e1e4e8; border-radius:6px;">
+        <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px; color:#2e7d32; font-weight:700;">Highest-Consensus Project</div>
+        <div style="font-weight:600; font-size:1.05rem; margin:6px 0 4px 0;"><a href="/projects/{{ calibration.anchors.highest.id }}" style="color:#0366d6; text-decoration:none;">{{ calibration.anchors.highest.title }}</a></div>
+        <div style="font-size:0.9rem; color:#555;">Mean score: <strong>{{ "%.1f"|format(calibration.anchors.highest.mean) }}</strong></div>
+      </div>
+      <div style="flex:1; min-width:220px; padding:12px 16px; background:#fff; border:1px solid #e1e4e8; border-radius:6px;">
+        <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px; color:#e65100; font-weight:700;">Lowest-Consensus Project</div>
+        <div style="font-weight:600; font-size:1.05rem; margin:6px 0 4px 0;"><a href="/projects/{{ calibration.anchors.lowest.id }}" style="color:#0366d6; text-decoration:none;">{{ calibration.anchors.lowest.title }}</a></div>
+        <div style="font-size:0.9rem; color:#555;">Mean score: <strong>{{ "%.1f"|format(calibration.anchors.lowest.mean) }}</strong></div>
+      </div>
+    </div>
+    <div style="font-size:0.85rem; color:#6a737d; font-style:italic;">Reference points, not targets.</div>
+    {% endif %}
+  {% else %}
+    <p style="margin:0; font-size:0.95rem; color:#586069;">{{ calibration.message }}</p>
+  {% endif %}
+</div>
+
 <h2>My Assignments</h2>
 
 {% if assignments %}
@@ -24,6 +50,9 @@
       <div>
         <h3 style="margin:0 0 4px 0;">
           <a href="/projects/{{ item.project.id }}" style="color:#0366d6; text-decoration:none;">{{ item.project.title }}</a>
+          {% if item.project.repo_url %}
+            <a href="/go/{{ item.project.id }}/repo" target="_blank" rel="noopener noreferrer" style="font-size:0.85rem; color:#0366d6; margin-left:8px; text-decoration:none; font-weight:normal;">[Repo &rarr;]</a>
+          {% endif %}
         </h3>
         <span style="color:#666; font-size:0.9rem;">Track: {{ item.project.track.name if item.project.track else item.project.track_id }} | Team: {{ item.project.team.name if item.project.team else item.project.team_id }}</span>
       </div>

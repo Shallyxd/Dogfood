@@ -29,7 +29,11 @@
         <th>Repository</th>
         <td>
           {% if project.repo_url %}
-            <a href="{{ project.repo_url }}" target="_blank" rel="noopener noreferrer" style="color:#0366d6;">{{ project.repo_url }}</a>
+            {% if user and user.role == 'judge' %}
+              <a href="/go/{{ project.id }}/repo" target="_blank" rel="noopener noreferrer" style="color:#0366d6;">{{ project.repo_url }}</a>
+            {% else %}
+              <a href="{{ project.repo_url }}" target="_blank" rel="noopener noreferrer" style="color:#0366d6;">{{ project.repo_url }}</a>
+            {% endif %}
           {% else %}
             <span style="color:#888;">None provided</span>
           {% endif %}
