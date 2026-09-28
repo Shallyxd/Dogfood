@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Quick Login — DOGFOOD 2026{% endblock %}
+
+{% block content %}
+<h2>Demo Quick Login</h2>
+<p>Click a role to set the session cookie and log in:</p>
+<div style="display:flex; flex-direction:column; gap:12px; max-width:360px; margin-top:16px;">
+  <a href="/login/org_7f2a"><button class="btn" style="width:100%; text-align:left; font-weight:600;">Organizer (org@example.org)</button></a>
+  <a href="/login/jdg_a_91bc"><button class="btn" style="width:100%; text-align:left; font-weight:600;">Judge A (judge_a@example.org)</button></a>
+  <a href="/login/jdg_b_44de"><button class="btn" style="width:100%; text-align:left; font-weight:600;">Judge B (judge_b@example.org)</button></a>
+  <a href="/login/prt_2e88"><button class="btn" style="width:100%; text-align:left; font-weight:600;">Participant (part@example.org)</button></a>
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Create Team — DOGFOOD 2026{% endblock %}
+
+{% block content %}
+<h1>Create Team</h1>
+
+<div class="detail-card" style="max-width: 500px;">
+  <form method="post" action="/teams">
+    <div class="form-group">
+      <label for="name">Team Name</label>
+      <input type="text" id="name" name="name" class="form-control" placeholder="Enter team name...">
+    </div>
+    <button type="submit" class="btn btn-primary">Create Team</button>
+  </form>
+</div>
+{% endblock %}

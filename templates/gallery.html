@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Project Gallery — DOGFOOD 2026{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+  <h1 style="margin:0;">Project Gallery</h1>
+  <span style="color:#666; font-size:0.95rem;">Showing {{ projects | length }} projects</span>
+</div>
+
+<form method="get" action="/projects" style="display:flex; gap:8px; margin-bottom:20px;">
+  <input
+    type="text"
+    name="q"
+    value="{{ q or '' }}"
+    placeholder="Search projects by title..."
+    class="form-control"
+    style="flex:1;"
+  >
+  <button type="submit" class="btn btn-primary">Search</button>
+  {% if q %}
+    <a href="/projects" class="btn">Clear</a>
+  {% endif %}
+</form>
+
+{% if projects %}
+<table class="table">
+  <thead>
+    <tr>
+      <th>Project Title</th>
+      <th>Track</th>
+      <th>Team</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in projects %}
+    <tr>
+      <td>
+        <a href="/projects/{{ p.id }}" style="font-weight:600; color:#0366d6; text-decoration:none;">
+          {{ p.title }}
+        </a>
+      </td>
+      <td>{{ p.track.name if p.track else p.track_id }}</td>
+      <td>{{ p.team.name if p.team else p.team_id }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No projects found matching "{{ q }}".</p>
+{% endif %}
+
+{% endblock %}

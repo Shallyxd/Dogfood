@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}404 Not Found — DOGFOOD 2026{% endblock %}
+
+{% block content %}
+<div class="detail-card" style="text-align:center; padding:40px 20px;">
+  <h1>404 Not Found</h1>
+  <p style="color:#666; margin-bottom:20px;">{{ detail or "The requested page or project does not exist." }}</p>
+  <a href="/projects" class="btn btn-primary">Return to Gallery</a>
+</div>
+{% endblock %}

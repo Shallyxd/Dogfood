@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Team Created — DOGFOOD 2026{% endblock %}
+
+{% block content %}
+<div class="alert alert-success">
+  <strong>Team "{{ team.name }}" created successfully!</strong>
+</div>
+
+<div class="detail-card" style="max-width: 600px;">
+  <h2>Invite Teammates</h2>
+  <p>Share this invite link with your team members:</p>
+  <div style="background:#f4f4f4; padding:12px; border-radius:4px; font-family:monospace; margin-bottom:16px; word-break:break-all;">
+    {{ invite_url }}
+  </div>
+  <p><a href="{{ invite_url }}" class="btn">Test Join Link</a> <a href="/projects" class="btn btn-primary">Go to Gallery</a></p>
+</div>
+{% endblock %}

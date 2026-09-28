@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>portal booting — phases 2+3 add pages</h1>
+<p>DOGFOOD 2026 hackathon submission-and-judging portal.</p>
+{% if user %}
+  <p>Authenticated as <strong>{{ user.email }}</strong> [{{ user.role }}].</p>
+{% else %}
+  <p>Not logged in. Use cookies or <a href="/login">Quick Login</a>.</p>
+{% endif %}
+{% endblock %}

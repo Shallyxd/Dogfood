@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.title }} — DOGFOOD 2026{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:16px;">
+  <a href="/projects" style="color:#0366d6; text-decoration:none;">&larr; Back to Gallery</a>
+</div>
+
+<div class="detail-card">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+    <h1 style="margin:0;">{{ project.title }}</h1>
+    <span class="role-badge" style="background:#e8f5e9; color:#2e7d32; font-size:0.9rem;">{{ project.status }}</span>
+  </div>
+
+  <p style="font-size:1.1rem; color:#444; margin-bottom:24px;">{{ project.summary }}</p>
+
+  <table class="table" style="max-width:600px; margin-bottom:20px;">
+    <tbody>
+      <tr>
+        <th style="width:160px;">Track</th>
+        <td>{{ project.track.name if project.track else project.track_id }}</td>
+      </tr>
+      <tr>
+        <th>Team</th>
+        <td>{{ project.team.name if project.team else project.team_id }}</td>
+      </tr>
+      <tr>
+        <th>Repository</th>
+        <td>
+          {% if project.repo_url %}
+            <a href="{{ project.repo_url }}" target="_blank" rel="noopener noreferrer" style="color:#0366d6;">{{ project.repo_url }}</a>
+          {% else %}
+            <span style="color:#888;">None provided</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <th>Submitted At</th>
+        <td>{{ project.submitted_at.strftime('%Y-%m-%d %H:%M:%S UTC') if project.submitted_at else 'N/A' }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
