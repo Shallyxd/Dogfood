@@ -1,0 +1,11 @@
+# Dossier — research, prompts, plan. Private, never pushed.
+dossier/
+
+# Runtime / local artefacts
+*.db
+*.sqlite3
+__pycache__/
+*.pyc
+*.mp4
+*.mov
+.DS_Store
