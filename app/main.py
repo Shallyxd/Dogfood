@@ -1,20 +1,26 @@
+import csv
+import io
 import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi import FastAPI, Request, Depends, HTTPException, Response
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import engine, Base, SessionLocal, get_db
-from app.models import Event, Track, Team, TeamMember, Project, User
+from app.models import Event, Track, Team, TeamMember, Project, User, Judge, Assignment, Score
 from app.seed import run_seed, print_seed_header
 from app.auth import (
     SessionAuthMiddleware,
     get_current_user,
+    require_judge,
+    require_organizer,
     require_participant,
 )
+
+JUDGE_ALIASES = {"judge_a": "jdg_01", "judge_b": "jdg_02"}
 
 
 @asynccontextmanager
@@ -60,6 +66,9 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @app.get("/")
 async def root():
     return RedirectResponse(url="/projects", status_code=303)
+
+
+# --- Public Gallery & Projects ---
 
 
 @app.get("/projects", response_class=HTMLResponse)
@@ -152,8 +161,8 @@ async def create_project(request: Request, db: Session = Depends(get_db)):
         )
         db.add(new_team)
         db.flush()
-        db.add(TeamMember(team_id=new_team.id, user_email=user.email))
-        team_id = new_team.id
+        db.add(TeamMember(team_id=new_team_id, user_email=user.email))
+        team_id = new_team_id
 
     track_id = body.get("track_id")
     track = db.query(Track).filter(Track.id == track_id).first() if track_id else None
@@ -209,6 +218,9 @@ async def project_detail(project_id: str, request: Request, db: Session = Depend
         name="project_detail.html",
         context={"project": project, "user": request.state.user},
     )
+
+
+# --- Teams ---
 
 
 @app.get("/teams/new", response_class=HTMLResponse)
@@ -301,6 +313,398 @@ async def join_team(invite_code: str, request: Request, db: Session = Depends(ge
         db.commit()
 
     return RedirectResponse(url="/projects", status_code=303)
+
+
+# --- T2 Judging API & Routes ---
+
+
+@app.get("/api/judge/scores")
+def judge_scores(
+    judge: str | None = None,
+    user: User = Depends(require_judge),
+    db: Session = Depends(get_db),
+):
+    me = user.judge_profile.fixture_judge_id
+    target = JUDGE_ALIASES.get(judge, judge) if judge else me
+    if target != me:
+        raise HTTPException(status_code=403, detail="Judges can only read their own scores")
+    rows = db.query(Score).filter(Score.judge_fixture_id == me).all()
+    return [
+        {
+            "project_id": r.project_id,
+            "criterion": r.criterion,
+            "value": r.value,
+            "comment": r.comment,
+        }
+        for r in rows
+    ]
+
+
+@app.get("/judge", response_class=HTMLResponse)
+async def judge_dashboard(
+    request: Request,
+    user: User = Depends(require_judge),
+    db: Session = Depends(get_db),
+):
+    me = user.judge_profile.fixture_judge_id
+    event = db.query(Event).first()
+    rubric = (event.rubric if event and event.rubric else None) or {
+        "functionality": 1.0 / 3.0,
+        "quality": 1.0 / 3.0,
+        "innovation": 1.0 / 3.0,
+    }
+
+    assignments = (
+        db.query(Assignment)
+        .options(
+            joinedload(Assignment.project).joinedload(Project.track),
+            joinedload(Assignment.project).joinedload(Project.team),
+        )
+        .filter(Assignment.judge_fixture_id == me)
+        .all()
+    )
+
+    my_scores = db.query(Score).filter(Score.judge_fixture_id == me).all()
+    score_map = {}
+    comment_map = {}
+    for s in my_scores:
+        score_map.setdefault(s.project_id, {})[s.criterion] = s.value
+        if s.comment:
+            comment_map[s.project_id] = s.comment
+
+    assignment_data = []
+    for a in assignments:
+        assignment_data.append({
+            "assignment": a,
+            "project": a.project,
+            "scores": score_map.get(a.project_id, {}),
+            "comment": comment_map.get(a.project_id, ""),
+        })
+
+    return templates.TemplateResponse(
+        request=request,
+        name="judge.html",
+        context={
+            "fixture_id": me,
+            "assignments": assignment_data,
+            "rubric": rubric,
+            "user": request.state.user,
+        },
+    )
+
+
+@app.post("/judge/score")
+async def judge_score_submit(
+    request: Request,
+    user: User = Depends(require_judge),
+    db: Session = Depends(get_db),
+):
+    me = user.judge_profile.fixture_judge_id
+
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        body = await request.json()
+    else:
+        form = await request.form()
+        body = dict(form)
+
+    project_id = body.get("project_id")
+    if not project_id:
+        raise HTTPException(status_code=422, detail="project_id required")
+
+    # Verify an Assignment exists for (my fixture id, project_id) — else 403
+    assignment = (
+        db.query(Assignment)
+        .filter(
+            Assignment.judge_fixture_id == me,
+            Assignment.project_id == project_id,
+        )
+        .first()
+    )
+    if not assignment:
+        raise HTTPException(status_code=403, detail="No assignment for this project")
+
+    comment = body.get("comment") or None
+    now = datetime.now(timezone.utc)
+
+    for crit in ["functionality", "quality", "innovation"]:
+        val = body.get(crit)
+        if val is not None:
+            try:
+                val_int = int(val)
+            except (ValueError, TypeError):
+                continue
+            existing_score = (
+                db.query(Score)
+                .filter(
+                    Score.judge_fixture_id == me,
+                    Score.project_id == project_id,
+                    Score.criterion == crit,
+                )
+                .first()
+            )
+            if existing_score:
+                existing_score.value = val_int
+                existing_score.comment = comment
+                existing_score.submitted_at = now
+            else:
+                db.add(
+                    Score(
+                        judge_fixture_id=me,
+                        project_id=project_id,
+                        criterion=crit,
+                        value=val_int,
+                        comment=comment,
+                        submitted_at=now,
+                    )
+                )
+
+    assignment.status = "done"
+    db.commit()
+
+    if "application/json" in request.headers.get("accept", "") or "application/json" in content_type:
+        return JSONResponse(status_code=200, content={"status": "ok"})
+    return RedirectResponse(url="/judge", status_code=303)
+
+
+# --- Organizer Console & Export ---
+
+
+@app.get("/organize", response_class=HTMLResponse)
+async def organize_dashboard(
+    request: Request,
+    user: User = Depends(require_organizer),
+    db: Session = Depends(get_db),
+):
+    tracks = db.query(Track).all()
+    judges = db.query(Judge).all()
+    assignments = db.query(Assignment).all()
+
+    judge_stats = {}
+    for a in assignments:
+        stats = judge_stats.setdefault(a.judge_fixture_id, {"total": 0, "done": 0})
+        stats["total"] += 1
+        if a.status == "done":
+            stats["done"] += 1
+
+    judge_progress = []
+    for j in judges:
+        st = judge_stats.get(j.id, {"total": 0, "done": 0})
+        judge_progress.append({
+            "id": j.id,
+            "name": j.name,
+            "email": j.email,
+            "tracks": j.tracks or [],
+            "done": st["done"],
+            "total": st["total"],
+        })
+
+    projects = (
+        db.query(Project)
+        .options(joinedload(Project.track), joinedload(Project.scores))
+        .all()
+    )
+    project_reviews = []
+    for p in projects:
+        unique_judges = set(s.judge_fixture_id for s in p.scores)
+        project_reviews.append({
+            "id": p.id,
+            "title": p.title,
+            "track": p.track,
+            "track_id": p.track_id,
+            "reviews_count": len(unique_judges),
+        })
+
+    return templates.TemplateResponse(
+        request=request,
+        name="organize.html",
+        context={
+            "tracks": tracks,
+            "judge_progress": judge_progress,
+            "project_reviews": project_reviews,
+            "user": request.state.user,
+        },
+    )
+
+
+@app.post("/organize/assign")
+async def organize_assign(
+    request: Request,
+    user: User = Depends(require_organizer),
+    db: Session = Depends(get_db),
+):
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        body = await request.json()
+    else:
+        form = await request.form()
+        body = dict(form)
+
+    track_id = body.get("track_id")
+    if not track_id:
+        raise HTTPException(status_code=422, detail="track_id required")
+
+    projects = db.query(Project).filter(Project.track_id == track_id).all()
+    judges = db.query(Judge).all()
+    track_judges = [j for j in judges if track_id in (j.tracks or [])]
+
+    created = 0
+    for j in track_judges:
+        for p in projects:
+            existing = (
+                db.query(Assignment)
+                .filter(
+                    Assignment.judge_fixture_id == j.id,
+                    Assignment.project_id == p.id,
+                )
+                .first()
+            )
+            if not existing:
+                db.add(
+                    Assignment(
+                        judge_fixture_id=j.id,
+                        project_id=p.id,
+                        status="pending",
+                    )
+                )
+                created += 1
+    db.commit()
+
+    if "application/json" in request.headers.get("accept", "") or "application/json" in content_type:
+        return JSONResponse(status_code=200, content={"created": created})
+    return RedirectResponse(url="/organize", status_code=303)
+
+
+@app.get("/organize/rubric", response_class=HTMLResponse)
+async def organize_rubric_get(
+    request: Request,
+    user: User = Depends(require_organizer),
+    db: Session = Depends(get_db),
+):
+    event = db.query(Event).first()
+    rubric = (event.rubric if event and event.rubric else None) or {
+        "functionality": 1.0 / 3.0,
+        "quality": 1.0 / 3.0,
+        "innovation": 1.0 / 3.0,
+    }
+    return templates.TemplateResponse(
+        request=request,
+        name="rubric.html",
+        context={"event": event, "rubric": rubric, "user": request.state.user},
+    )
+
+
+@app.post("/organize/rubric")
+async def organize_rubric_post(
+    request: Request,
+    user: User = Depends(require_organizer),
+    db: Session = Depends(get_db),
+):
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        body = await request.json()
+    else:
+        form = await request.form()
+        body = dict(form)
+
+    f_val = float(body.get("functionality", 1.0 / 3.0))
+    q_val = float(body.get("quality", 1.0 / 3.0))
+    i_val = float(body.get("innovation", 1.0 / 3.0))
+
+    event = db.query(Event).first()
+    if event:
+        event.rubric = {
+            "functionality": f_val,
+            "quality": q_val,
+            "innovation": i_val,
+        }
+        db.commit()
+
+    if "application/json" in request.headers.get("accept", "") or "application/json" in content_type:
+        return JSONResponse(status_code=200, content={"rubric": event.rubric if event else {}})
+    return RedirectResponse(url="/organize", status_code=303)
+
+
+@app.get("/api/export.csv")
+def export_csv(
+    user: User = Depends(require_organizer),
+    db: Session = Depends(get_db),
+):
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "project_id",
+        "title",
+        "track",
+        "reviews",
+        "avg_functionality",
+        "avg_quality",
+        "avg_innovation",
+        "avg_total",
+    ])
+
+    event = db.query(Event).first()
+    rubric = (event.rubric if event and event.rubric else None) or {
+        "functionality": 1.0 / 3.0,
+        "quality": 1.0 / 3.0,
+        "innovation": 1.0 / 3.0,
+    }
+
+    projects = (
+        db.query(Project)
+        .options(joinedload(Project.track), joinedload(Project.scores))
+        .all()
+    )
+
+    for p in projects:
+        distinct_judges = set()
+        crit_scores = {"functionality": [], "quality": [], "innovation": []}
+        for s in p.scores:
+            distinct_judges.add(s.judge_fixture_id)
+            if s.criterion in crit_scores:
+                crit_scores[s.criterion].append(s.value)
+
+        reviews_count = len(distinct_judges)
+        avg_func = (
+            sum(crit_scores["functionality"]) / len(crit_scores["functionality"])
+            if crit_scores["functionality"]
+            else 0.0
+        )
+        avg_qual = (
+            sum(crit_scores["quality"]) / len(crit_scores["quality"])
+            if crit_scores["quality"]
+            else 0.0
+        )
+        avg_innov = (
+            sum(crit_scores["innovation"]) / len(crit_scores["innovation"])
+            if crit_scores["innovation"]
+            else 0.0
+        )
+
+        w_func = float(rubric.get("functionality", 1.0 / 3.0))
+        w_qual = float(rubric.get("quality", 1.0 / 3.0))
+        w_innov = float(rubric.get("innovation", 1.0 / 3.0))
+        avg_total = (avg_func * w_func) + (avg_qual * w_qual) + (avg_innov * w_innov)
+
+        writer.writerow([
+            p.id,
+            p.title,
+            p.track.name if p.track else p.track_id,
+            reviews_count,
+            f"{avg_func:.2f}",
+            f"{avg_qual:.2f}",
+            f"{avg_innov:.2f}",
+            f"{avg_total:.2f}",
+        ])
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="scores_export.csv"'},
+    )
+
+
+# --- Auth ---
 
 
 @app.get("/login", response_class=HTMLResponse)

@@ -23,6 +23,7 @@ class Event(Base):
     submissions_close = Column(DateTime, nullable=False)
     judging_open = Column(DateTime, nullable=True)
     results_public = Column(Boolean, default=False, nullable=False)
+    rubric = Column(JSON, nullable=True)
 
     tracks = relationship("Track", back_populates="event")
     teams = relationship("Team", back_populates="event")
