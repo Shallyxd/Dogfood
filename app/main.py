@@ -892,6 +892,19 @@ async def results_page(request: Request, db: Session = Depends(get_db)):
     )
 
 
+def _csv_safe(value: str) -> str:
+    """
+    Neutralise CSV formula injection (OWASP: 'Injection in Exported CSVs').
+    Spreadsheet applications interpret cells starting with =, +, -, or @ as
+    formulas. Prefixing with a tab makes the value text-only while keeping it
+    human-readable. Applied to every string cell in the export.
+    """
+    s = str(value)
+    if s and s[0] in ("=", "+", "-", "@"):
+        return "\t" + s
+    return s
+
+
 @app.get("/api/export.csv")
 def export_csv(
     user: User = Depends(require_organizer),
@@ -966,9 +979,9 @@ def export_csv(
             rank_str = str(res.rank)
 
         writer.writerow([
-            p.id,
-            p.title,
-            p.track.name if p.track else p.track_id,
+            _csv_safe(p.id),
+            _csv_safe(p.title),
+            _csv_safe(p.track.name if p.track else p.track_id),
             reviews_count,
             f"{avg_func:.2f}",
             f"{avg_qual:.2f}",

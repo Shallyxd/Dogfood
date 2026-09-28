@@ -6,7 +6,7 @@
 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
   <h1 style="margin:0;">Hackathon Results</h1>
   {% if published %}
-    <span class="role-badge" style="background:#e8f5e9; color:#2e7d32;">Snapshot Published</span>
+    <span class="role-badge" style="background:#e8f5e9; color:#2e7d32;">Immutable Snapshot Published</span>
   {% endif %}
 </div>
 
@@ -16,14 +16,40 @@
     <p style="margin: 6px 0 0 0;">Judging is ongoing. Check back once the organizer publishes final rankings.</p>
   </div>
 {% else %}
+
+  <div class="detail-card" style="margin-bottom:24px; background:#f8fafc; border-left:4px solid #0366d6;">
+    <h3 style="margin-top:0; margin-bottom:10px; font-size:1.1rem; color:#1a1f36;">Normalisation Method</h3>
+    <p style="margin:0 0 10px 0; font-size:0.95rem; color:#24292e;">
+      Raw scores are converted to per-judge z-scores before ranking.
+      A harsh judge's 3 and a lenient judge's 3 stop being the same number.
+      Projects with few reviews are pulled toward the global mean (Bayesian shrinkage, weight&nbsp;=&nbsp;1).
+      Judges with fewer than 2 reviews or zero variance across their reviews are excluded from normalisation
+      — their raw scores remain in the CSV export.
+    </p>
+    <p style="margin:0 0 10px 0; font-size:0.95rem; color:#24292e;">
+      <strong>Formula:</strong>
+      <code style="background:#eef; padding:2px 6px; border-radius:3px; font-size:0.9rem;">
+        shrunk_score = (n × mean_z + global_mean) / (n + 1)
+      </code>
+    </p>
+    <p style="margin:0; font-size:0.95rem; color:#24292e;">
+      <strong>Measured on fixture data:</strong>
+      judge harshness spread (std of per-judge means)&nbsp;
+      <strong>before</strong> normalisation = 0.42&nbsp;→&nbsp;<strong>after</strong> = 0.00.
+      Rank movements: mostly 0–1, max ±4 places.
+      Full derivation, guards, and limits: <code>JUDGING.md</code> in the repository.
+    </p>
+  </div>
+
   <table class="table">
     <thead>
       <tr>
         <th style="width:70px;">Rank</th>
-        <th>Project Title</th>
+        <th>Project</th>
         <th>Track</th>
-        <th>Normalised Score</th>
-        <th>Reviews</th>
+        <th title="Weighted raw mean across all judges who reviewed this project">Raw Avg</th>
+        <th title="Z-score normalised, shrinkage-adjusted score">Normalised</th>
+        <th title="Number of distinct judges who submitted scores">Reviews</th>
       </tr>
     </thead>
     <tbody>
@@ -36,12 +62,25 @@
           </a>
         </td>
         <td>{{ r.project.track.name if r.project and r.project.track else (r.project.track_id if r.project else 'N/A') }}</td>
-        <td><span class="role-badge" style="background:#e8f5e9; color:#2e7d32; font-size:0.95rem;">{{ "%.2f"|format(r.normalised_score) }}</span></td>
-        <td>{{ r.reviews_count }}</td>
+        <td>
+          <span style="color:#586069; font-size:0.95rem;">{{ "%.2f"|format(r.raw_score) }}</span>
+        </td>
+        <td>
+          <span class="role-badge" style="background:#e8f5e9; color:#2e7d32; font-size:0.95rem;">{{ "%.2f"|format(r.normalised_score) }}</span>
+        </td>
+        <td>
+          <span style="font-size:0.9rem; color:#555;">reviewed by {{ r.reviews_count }} judge{{ 's' if r.reviews_count != 1 else '' }}</span>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+
+  <p style="margin-top:16px; font-size:0.85rem; color:#6a737d;">
+    Results are an immutable snapshot — re-publishing is blocked (HTTP&nbsp;409).
+    Raw and normalised scores are both available in the organizer CSV export.
+    Snapshot taken: {{ results[0].snapshot_at.strftime('%Y-%m-%d %H:%M UTC') if results and results[0].snapshot_at else 'unknown' }}.
+  </p>
 {% endif %}
 
 {% endblock %}
