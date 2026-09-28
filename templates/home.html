@@ -1,11 +1,31 @@
 {% extends "base.html" %}
 
+{% block title %}DOGFOOD 2026 — Hackathon Portal{% endblock %}
+
 {% block content %}
-<h1>portal booting — phases 2+3 add pages</h1>
-<p>DOGFOOD 2026 hackathon submission-and-judging portal.</p>
-{% if user %}
-  <p>Authenticated as <strong>{{ user.email }}</strong> [{{ user.role }}].</p>
-{% else %}
-  <p>Not logged in. Use cookies or <a href="/login">Quick Login</a>.</p>
-{% endif %}
+<div class="detail-card" style="background:#f8fafc; border-left:4px solid #0366d6; margin-bottom:24px;">
+  <h1 style="margin-top:0;">{{ event.name if event else "DOGFOOD 2026" }}</h1>
+  <p style="font-size:1.05rem; color:#24292e;">
+    A self-hostable hackathon portal: public project gallery, deadline-enforced submissions,
+    backend-enforced judge isolation, and bias-corrected rankings via per-judge z-score normalisation.
+  </p>
+  <p>
+    <a href="/projects" class="btn btn-primary">Browse {{ project_count }} projects</a>
+    <a href="/results" class="btn">Results</a>
+  </p>
+</div>
+
+<h2>How it works</h2>
+<ul>
+  <li><strong>Participants</strong> submit projects to a track before the deadline — late submissions are refused server-side (HTTP 422).</li>
+  <li><strong>Judges</strong> score only their assigned projects on functionality, quality and innovation (2–5). Peer scores are unreachable — enforced in the route, not the UI.</li>
+  <li><strong>Organisers</strong> batch-assign judges, tune rubric weights, and publish an immutable ranking snapshot (re-publish is blocked with HTTP 409).</li>
+</ul>
+
+<h2>Sign in</h2>
+<p>
+  Demo logins are deterministic tokens from <code>.dogfood.toml</code>:
+  <code>/login/&lt;token&gt;</code> (organizer <code>org_7f2a</code>, judge <code>jdg_a_91bc</code>, participant <code>prt_2e88</code>).
+  See <code>THREAT-MODEL.md</code> for what this auth does and does not protect.
+</p>
 {% endblock %}

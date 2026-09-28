@@ -171,3 +171,15 @@ class ReviewEvent(Base):
     opened_at = Column(DateTime, nullable=False)
  
     project = relationship("Project", back_populates="review_events")
+
+
+class AuditEvent(Base):
+    """Append-only organiser audit trail: publish, rubric and assignment actions."""
+
+    __tablename__ = "audit_event"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    actor_email = Column(String, nullable=False)
+    action = Column(String, nullable=False)  # publish_results | rubric_update | batch_assign
+    detail = Column(String, nullable=True)
+    created_at = Column(DateTime, nullable=False)

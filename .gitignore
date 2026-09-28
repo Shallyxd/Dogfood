@@ -3,6 +3,9 @@ dossier/
 
 # Runtime / local artefacts
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 *.sqlite3
 __pycache__/
 *.pyc

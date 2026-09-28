@@ -23,8 +23,9 @@
       Raw scores are converted to per-judge z-scores before ranking.
       A harsh judge's 3 and a lenient judge's 3 stop being the same number.
       Projects with few reviews are pulled toward the global mean (Bayesian shrinkage, weight&nbsp;=&nbsp;1).
-      Judges with fewer than 2 reviews or zero variance across their reviews are excluded from normalisation
-      — their raw scores remain in the CSV export.
+      Judges with fewer than 2 reviews are excluded from normalisation — their raw scores remain in the CSV
+      export. Judges with zero variance across their reviews (flat raters) are mean-centred instead: they
+      contribute no signal and no noise. Full guards in <code>JUDGING.md</code>.
     </p>
     <p style="margin:0 0 10px 0; font-size:0.95rem; color:#24292e;">
       <strong>Formula:</strong>

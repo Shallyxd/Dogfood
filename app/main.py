@@ -4,6 +4,7 @@ import secrets
 import statistics
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import FastAPI, Request, Depends, HTTPException, Response
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -11,7 +12,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import engine, Base, SessionLocal, get_db
-from app.models import Event, Track, Team, TeamMember, Project, User, Judge, Assignment, Score, Result, ReviewEvent
+from app.models import Event, Track, Team, TeamMember, Project, User, Judge, Assignment, Score, Result, ReviewEvent, AuditEvent
 from app.seed import run_seed, print_seed_header
 from app.judging.normalise import normalise
 from app.auth import (
@@ -65,9 +66,29 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     )
 
 
-@app.get("/")
-async def root():
-    return RedirectResponse(url="/projects", status_code=303)
+def _log_audit(db: Session, user: User, action: str, detail: str = "") -> None:
+    """Append-only organiser audit trail; committed with the caller's transaction."""
+    db.add(AuditEvent(
+        actor_email=user.email,
+        action=action,
+        detail=detail,
+        created_at=datetime.now(timezone.utc),
+    ))
+
+
+def _results_published(db: Session) -> bool:
+    return db.query(Result).count() > 0
+
+
+@app.get("/", response_class=HTMLResponse)
+async def root(request: Request, db: Session = Depends(get_db)):
+    event = db.query(Event).first()
+    project_count = db.query(Project).count()
+    return templates.TemplateResponse(
+        request=request,
+        name="home.html",
+        context={"event": event, "project_count": project_count, "user": request.state.user},
+    )
 
 
 # --- Public Gallery & Projects ---
@@ -153,8 +174,8 @@ async def create_project(request: Request, db: Session = Depends(get_db)):
     if tm:
         team_id = tm.team_id
     else:
-        new_team_id = f"tm_{secrets.token_hex(4)}"
-        invite_code = secrets.token_hex(4)
+        new_team_id = f"tm_{secrets.token_hex(8)}"
+        invite_code = secrets.token_hex(8)
         new_team = Team(
             id=new_team_id,
             name=f"Team {user.email.split('@')[0]}",
@@ -172,14 +193,21 @@ async def create_project(request: Request, db: Session = Depends(get_db)):
         first_track = db.query(Track).first()
         track_id = first_track.id if first_track else "trk_01"
 
-    new_project_id = f"prj_{secrets.token_hex(4)}"
+    repo_url = str(body.get("repo_url", "") or "").strip() or None
+    if repo_url and not repo_url.lower().startswith(("http://", "https://")):
+        return JSONResponse(
+            status_code=422,
+            content={"detail": "Repository URL must start with http:// or https://"},
+        )
+
+    new_project_id = f"prj_{secrets.token_hex(8)}"
     project = Project(
         id=new_project_id,
         team_id=team_id,
         track_id=track_id,
         title=title,
         summary=body.get("summary", ""),
-        repo_url=body.get("repo_url") or None,
+        repo_url=repo_url,
         submitted_at=now,
         status="submitted",
     )
@@ -298,8 +326,8 @@ async def create_team(request: Request, db: Session = Depends(get_db)):
 
     name = str(body.get("name", "")).strip() or f"Team {user.email.split('@')[0]}"
     event = db.query(Event).first()
-    invite_code = secrets.token_hex(4)  # 8 chars
-    team_id = f"tm_{secrets.token_hex(4)}"
+    invite_code = secrets.token_hex(8)
+    team_id = f"tm_{secrets.token_hex(8)}"
 
     team = Team(
         id=team_id,
@@ -552,40 +580,54 @@ async def judge_score_submit(
     if not assignment:
         raise HTTPException(status_code=403, detail="No assignment for this project")
 
+    # Scores freeze once results are published (immutable snapshot).
+    if _results_published(db):
+        raise HTTPException(status_code=403, detail="Results are published — scores are frozen")
+
     comment = body.get("comment") or None
     now = datetime.now(timezone.utc)
 
+    scored_any = False
     for crit in ["functionality", "quality", "innovation"]:
         val = body.get(crit)
-        if val is not None:
-            try:
-                val_int = int(val)
-            except (ValueError, TypeError):
-                continue
-            existing_score = (
-                db.query(Score)
-                .filter(
-                    Score.judge_fixture_id == me,
-                    Score.project_id == project_id,
-                    Score.criterion == crit,
-                )
-                .first()
+        if val is None or (isinstance(val, str) and val.strip() == ""):
+            continue  # not provided (e.g. untouched placeholder option)
+        if isinstance(val, bool) or (isinstance(val, float) and not val.is_integer()):
+            raise HTTPException(status_code=422, detail=f"{crit} must be an integer 2-5")
+        try:
+            val_int = int(val)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=422, detail=f"{crit} must be an integer 2-5")
+        if not 2 <= val_int <= 5:
+            raise HTTPException(status_code=422, detail=f"{crit} must be between 2 and 5")
+        existing_score = (
+            db.query(Score)
+            .filter(
+                Score.judge_fixture_id == me,
+                Score.project_id == project_id,
+                Score.criterion == crit,
             )
-            if existing_score:
-                existing_score.value = val_int
-                existing_score.comment = comment
-                existing_score.submitted_at = now
-            else:
-                db.add(
-                    Score(
-                        judge_fixture_id=me,
-                        project_id=project_id,
-                        criterion=crit,
-                        value=val_int,
-                        comment=comment,
-                        submitted_at=now,
-                    )
+            .first()
+        )
+        if existing_score:
+            existing_score.value = val_int
+            existing_score.comment = comment
+            existing_score.submitted_at = now
+        else:
+            db.add(
+                Score(
+                    judge_fixture_id=me,
+                    project_id=project_id,
+                    criterion=crit,
+                    value=val_int,
+                    comment=comment,
+                    submitted_at=now,
                 )
+            )
+        scored_any = True
+
+    if not scored_any:
+        raise HTTPException(status_code=422, detail="At least one criterion score (2-5) is required")
 
     assignment.status = "done"
     db.commit()
@@ -663,6 +705,13 @@ async def organize_dashboard(
             "receipt_line": receipt_line,
         })
 
+    audit_events = (
+        db.query(AuditEvent)
+        .order_by(AuditEvent.id.desc())
+        .limit(200)
+        .all()
+    )
+
     return templates.TemplateResponse(
         request=request,
         name="organize.html",
@@ -670,6 +719,7 @@ async def organize_dashboard(
             "tracks": tracks,
             "judge_progress": judge_progress,
             "project_reviews": project_reviews,
+            "audit_events": audit_events,
             "user": request.state.user,
         },
     )
@@ -696,18 +746,16 @@ async def organize_assign(
     judges = db.query(Judge).all()
     track_judges = [j for j in judges if track_id in (j.tracks or [])]
 
+    existing_assignments = set(
+        (a.judge_fixture_id, a.project_id)
+        for a in db.query(Assignment.judge_fixture_id, Assignment.project_id).filter(
+            Assignment.project_id.in_([p.id for p in projects])
+        ).all()
+    )
     created = 0
     for j in track_judges:
         for p in projects:
-            existing = (
-                db.query(Assignment)
-                .filter(
-                    Assignment.judge_fixture_id == j.id,
-                    Assignment.project_id == p.id,
-                )
-                .first()
-            )
-            if not existing:
+            if (j.id, p.id) not in existing_assignments:
                 db.add(
                     Assignment(
                         judge_fixture_id=j.id,
@@ -716,6 +764,8 @@ async def organize_assign(
                     )
                 )
                 created += 1
+    if created:
+        _log_audit(db, user, "batch_assign", f"track {track_id}: {created} assignments created")
     db.commit()
 
     if "application/json" in request.headers.get("accept", "") or "application/json" in content_type:
@@ -755,9 +805,23 @@ async def organize_rubric_post(
         form = await request.form()
         body = dict(form)
 
-    f_val = float(body.get("functionality", 1.0 / 3.0))
-    q_val = float(body.get("quality", 1.0 / 3.0))
-    i_val = float(body.get("innovation", 1.0 / 3.0))
+    if _results_published(db):
+        raise HTTPException(status_code=409, detail="Results already published — rubric is frozen")
+
+    def _parse_weight(name: str, raw: Any) -> float:
+        try:
+            w = float(raw)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=422, detail=f"{name} must be a number between 0 and 1")
+        if not 0.0 <= w <= 1.0:
+            raise HTTPException(status_code=422, detail=f"{name} must be a number between 0 and 1")
+        return w
+
+    f_val = _parse_weight("functionality", body.get("functionality", 1.0 / 3.0))
+    q_val = _parse_weight("quality", body.get("quality", 1.0 / 3.0))
+    i_val = _parse_weight("innovation", body.get("innovation", 1.0 / 3.0))
+    if abs((f_val + q_val + i_val) - 1.0) > 1e-6:
+        raise HTTPException(status_code=422, detail="Rubric weights must sum to 1")
 
     event = db.query(Event).first()
     if event:
@@ -766,6 +830,8 @@ async def organize_rubric_post(
             "quality": q_val,
             "innovation": i_val,
         }
+        _log_audit(db, user, "rubric_update",
+                   f"weights set to functionality={f_val} quality={q_val} innovation={i_val}")
         db.commit()
 
     if "application/json" in request.headers.get("accept", "") or "application/json" in content_type:
@@ -844,6 +910,7 @@ async def publish_results(
 
     if event:
         event.results_public = True
+    _log_audit(db, user, "publish_results", f"{len(ranked_projects)} projects ranked, snapshot immutable")
     db.commit()
 
     if "application/json" in request.headers.get("accept", "") or "application/json" in request.headers.get("content-type", ""):
@@ -1013,7 +1080,7 @@ async def login(request: Request):
 @app.get("/login/{token}")
 async def login_with_token(token: str):
     response = RedirectResponse(url="/projects", status_code=303)
-    response.set_cookie("session", token, path="/", httponly=False)
+    response.set_cookie("session", token, path="/", httponly=True, samesite="lax")
     return response
 
 
@@ -1022,3 +1089,183 @@ async def logout():
     response = RedirectResponse(url="/projects", status_code=303)
     response.delete_cookie("session", path="/")
     return response
+
+@app.get("/api/export/submissions.csv")
+def export_submissions_csv(
+    user: User = Depends(require_organizer),
+    db: Session = Depends(get_db),
+):
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "project_id",
+        "title",
+        "track",
+        "team_id",
+        "repo_url",
+        "status",
+        "submitted_at"
+    ])
+    
+    projects = (
+        db.query(Project)
+        .options(joinedload(Project.track))
+        .all()
+    )
+    for p in projects:
+        writer.writerow([
+            _csv_safe(p.id),
+            _csv_safe(p.title),
+            _csv_safe(p.track.name if p.track else p.track_id),
+            _csv_safe(p.team_id),
+            _csv_safe(p.repo_url or ""),
+            _csv_safe(p.status),
+            p.submitted_at.isoformat()
+        ])
+        
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="submissions_export.csv"'},
+    )
+
+@app.get("/api/export/scores.csv")
+def export_scores_csv(
+    user: User = Depends(require_organizer),
+    db: Session = Depends(get_db),
+):
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "project_id",
+        "judge_fixture_id",
+        "criterion",
+        "value",
+        "comment",
+        "submitted_at"
+    ])
+    
+    scores = db.query(Score).all()
+    for s in scores:
+        writer.writerow([
+            _csv_safe(s.project_id),
+            _csv_safe(s.judge_fixture_id),
+            _csv_safe(s.criterion),
+            s.value,
+            _csv_safe(s.comment or ""),
+            s.submitted_at.isoformat()
+        ])
+        
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="raw_scores_export.csv"'},
+    )
+
+@app.post("/organize/users")
+async def create_user(
+    request: Request,
+    user: User = Depends(require_organizer),
+    db: Session = Depends(get_db),
+):
+    form = await request.form()
+    body = dict(form)
+            
+    email = str(body.get("email", "")).strip()
+    role = str(body.get("role", "")).strip()
+    
+    if not email or role not in ["judge", "participant", "organizer"]:
+        return RedirectResponse(url="/organize", status_code=303)
+        
+    token = secrets.token_hex(8)
+    new_user = User(
+        email=email,
+        role=role,
+        session_token=token
+    )
+    db.add(new_user)
+    db.commit()
+    magic_link = f"http://localhost:8080/login/{token}"
+    return HTMLResponse(
+        content=f"<!DOCTYPE html><html><body><h2>User Created</h2><p>Email: {email}</p><p>Role: {role}</p><p>Magic Link: <a href='{magic_link}'>{magic_link}</a></p><br><a href='/organize'>Back to Organizer Dashboard</a></body></html>",
+        status_code=201
+    )
+
+@app.post("/organize/event")
+async def update_event(
+    request: Request,
+    user: User = Depends(require_organizer),
+    db: Session = Depends(get_db),
+):
+    form = await request.form()
+    body = dict(form)
+    
+    name = str(body.get("name", "")).strip()
+    if name:
+        event = db.query(Event).first()
+        if event:
+            event.name = name
+            db.commit()
+            
+    return RedirectResponse(url="/organize", status_code=303)
+
+@app.get("/projects/{project_id}/edit", response_class=HTMLResponse)
+async def edit_project_form(
+    project_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_participant),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Not found")
+        
+    event = db.query(Event).first()
+    is_closed = False
+    if event:
+        close_dt = event.submissions_close
+        if close_dt.tzinfo is None:
+            close_dt = close_dt.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) > close_dt:
+            is_closed = True
+            
+    tracks = db.query(Track).all()
+    return templates.TemplateResponse(
+        request=request,
+        name="project_edit.html",
+        context={"closed": is_closed, "tracks": tracks, "project": project, "user": request.state.user},
+    )
+
+@app.post("/projects/{project_id}/edit")
+async def edit_project(
+    project_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_participant),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Not found")
+        
+    event = db.query(Event).first()
+    now = datetime.now(timezone.utc)
+    if event:
+        close_dt = event.submissions_close
+        if close_dt.tzinfo is None:
+            close_dt = close_dt.replace(tzinfo=timezone.utc)
+        if now > close_dt:
+            return JSONResponse(status_code=422, content={"detail": "Submissions are closed"})
+
+    form = await request.form()
+    body = dict(form)
+    
+    title = str(body.get("title", "")).strip()
+    if title:
+        project.title = title
+    project.summary = body.get("summary", "")
+    project.repo_url = body.get("repo_url") or None
+    if body.get("track_id"):
+        project.track_id = body.get("track_id")
+        
+    db.commit()
+    return RedirectResponse(url=f"/projects/{project.id}", status_code=303)

@@ -23,7 +23,6 @@ def find_fixtures_path() -> Path:
         Path("seed/fixtures.json"),
         Path("/app/seed/fixtures.json"),
         Path("dossier/Dogfood/fixtures.json"),
-        Path("/Users/nomrelol/Desktop/dogfood/seed/fixtures.json"),
     ]
     for p in candidates:
         if p.is_file():

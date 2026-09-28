@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Submission — DOGFOOD 2026{% endblock %}
+
+{% block content %}
+<h1>Edit Project</h1>
+
+{% if closed %}
+  <div class="alert alert-warning">
+    <strong>Submissions are closed</strong>
+    <p style="margin: 8px 0 0 0;">The submission deadline for this hackathon has passed.</p>
+  </div>
+{% else %}
+  <div class="detail-card" style="max-width: 650px;">
+    <form method="post" action="/projects/{{ project.id }}/edit">
+      <div class="form-group">
+        <label for="title">Project Title *</label>
+        <input type="text" id="title" name="title" required class="form-control" value="{{ project.title }}">
+      </div>
+
+      <div class="form-group">
+        <label for="summary">Summary</label>
+        <textarea id="summary" name="summary" rows="3" class="form-control">{{ project.summary }}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="repo_url">Repository URL</label>
+        <input type="url" id="repo_url" name="repo_url" class="form-control" value="{{ project.repo_url or '' }}">
+      </div>
+
+      <div class="form-group">
+        <label for="track_id">Track</label>
+        <select id="track_id" name="track_id" class="form-control">
+          {% for track in tracks %}
+            <option value="{{ track.id }}" {% if project.track_id == track.id %}selected{% endif %}>{{ track.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Save Changes</button>
+    </form>
+  </div>
+{% endif %}
+
+{% endblock %}

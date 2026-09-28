@@ -29,15 +29,7 @@ class SessionAuthMiddleware(BaseHTTPMiddleware):
 
 
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> User | None:
-    session_token = request.cookies.get("session")
-    if not session_token:
-        return None
-    return (
-        db.query(User)
-        .options(joinedload(User.judge_profile))
-        .filter(User.session_token == session_token)
-        .first()
-    )
+    return getattr(request.state, "user", None)
 
 
 def require_user(user: User | None = Depends(get_current_user)) -> User:
@@ -55,6 +47,8 @@ def require_organizer(user: User | None = Depends(get_current_user)) -> User:
 def require_judge(user: User | None = Depends(get_current_user)) -> User:
     if not user or user.role != "judge":
         raise HTTPException(status_code=403, detail="Forbidden")
+    if getattr(user, "judge_profile", None) is None:
+        raise HTTPException(status_code=403, detail="Judge account is not linked to a judge profile")
     return user
 
 

@@ -1,9 +1,20 @@
-# Keep the Docker build context lean
-dossier/
-.git
+# Databases and runtime artefacts
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 *.sqlite3
+
+# Private planning material
+dossier/
+
+# VCS and caches
+.git/
 __pycache__/
 *.pyc
-.DS_Store
 .venv/
+
+# Media / OS noise
+*.mp4
+*.mov
+.DS_Store

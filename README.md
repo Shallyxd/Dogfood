@@ -28,6 +28,14 @@ No cloud, no API keys, no external services. SQLite database, idempotent seed.
 - **Normalisation:** per-judge z-scores with flat-rater and single-sample guards, shrinkage toward the global mean, one-click immutable publish (`409` on re-publish), public `/results` only after publishing. See `JUDGING.md` for the maths, the measured numbers, and the limits.
 - **Innovation:** judge calibration mirror (your scale vs the pool, reference anchor cards) and organiser review receipts (which judge opened which artefact, when).
 
+## Honest limits (what it does not do yet)
+
+- T3/T4 are not built: no community voting, comments, certificates, webhooks, bulk import, or embeddable gallery.
+- No pairwise judging mode (bonus not attempted — see `JUDGING.md` for why it was deferred).
+- Auth is demo-grade by design: deterministic tokens from `.dogfood.toml` (the acceptance checker requires them), token-in-URL login, logout clears the client cookie only. See `THREAT-MODEL.md`.
+- No rate limiting, no CSRF tokens (SameSite=Lax cookies only), no conflict-of-interest guard on assignments.
+- Single-node SQLite; judges cannot be invited through the UI (seed only); submissions have no draft/edit cycle.
+
 ## Repo layout
 
 ```

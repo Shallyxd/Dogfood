@@ -72,7 +72,8 @@
       <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
         <div class="form-group" style="margin-bottom:0; flex:1; min-width:120px;">
           <label style="font-size:0.9rem;">Functionality (2–5)</label>
-          <select name="functionality" class="form-control">
+          <select name="functionality" class="form-control" required>
+            <option value="" disabled {% if not item.scores.get('functionality') %}selected{% endif %}>— choose —</option>
             {% for v in [2, 3, 4, 5] %}
               <option value="{{ v }}" {% if item.scores.get('functionality') == v %}selected{% endif %}>{{ v }}</option>
             {% endfor %}
@@ -81,7 +82,8 @@
 
         <div class="form-group" style="margin-bottom:0; flex:1; min-width:120px;">
           <label style="font-size:0.9rem;">Quality (2–5)</label>
-          <select name="quality" class="form-control">
+          <select name="quality" class="form-control" required>
+            <option value="" disabled {% if not item.scores.get('quality') %}selected{% endif %}>— choose —</option>
             {% for v in [2, 3, 4, 5] %}
               <option value="{{ v }}" {% if item.scores.get('quality') == v %}selected{% endif %}>{{ v }}</option>
             {% endfor %}
@@ -90,7 +92,8 @@
 
         <div class="form-group" style="margin-bottom:0; flex:1; min-width:120px;">
           <label style="font-size:0.9rem;">Innovation (2–5)</label>
-          <select name="innovation" class="form-control">
+          <select name="innovation" class="form-control" required>
+            <option value="" disabled {% if not item.scores.get('innovation') %}selected{% endif %}>— choose —</option>
             {% for v in [2, 3, 4, 5] %}
               <option value="{{ v }}" {% if item.scores.get('innovation') == v %}selected{% endif %}>{{ v }}</option>
             {% endfor %}

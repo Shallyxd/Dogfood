@@ -11,6 +11,9 @@
   <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
     <h1 style="margin:0;">{{ project.title }}</h1>
     <span class="role-badge" style="background:#e8f5e9; color:#2e7d32; font-size:0.9rem;">{{ project.status }}</span>
+    {% if user and user.role == 'participant' %}
+      <a href="/projects/{{ project.id }}/edit" class="btn btn-sm btn-primary">Edit Submission</a>
+    {% endif %}
   </div>
 
   <p style="font-size:1.1rem; color:#444; margin-bottom:24px;">{{ project.summary }}</p>
