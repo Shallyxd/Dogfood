@@ -72,8 +72,18 @@ Out of scope: host compromise, TLS termination, DDoS, and the organiser's own ma
 - **No CSP headers.** `HttpOnly` cookies raise the XSS bar; there is no
   Content-Security-Policy beyond that.
 
+## Community voting (T3) — abuse surface
+
+- **Over-spending the budget** — stopped: the quadratic cost (`credits = votes²`) is validated
+  server-side against the remaining budget; an over-allocation returns 422.
+- **Double-voting a project** — stopped: `vote` has a unique constraint on
+  (`voter_email`, `project_id`); a second vote updates the first.
+- **Vote-brigading during judging** — mitigated: tallies are hidden until results are published,
+  so no running score is visible to coordinate against.
+- **Still open:** Sybil resistance rests on requiring an account; there is no email/identity
+  verification and no rate limiting, so a determined attacker with many accounts is not stopped.
+  This is named rather than claimed.
+
 ## Deliberate non-goals
 
-- Community voting (T3) was not built, so ballot-stuffing/Sybil defences are not
-  applicable — and are not claimed.
 - Pairwise judging mode was not built (bonus not attempted).

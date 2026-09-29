@@ -34,14 +34,26 @@ Judge score isolation is enforced **inside the route handler** (`GET /api/judge/
 
 ## Judging maths
 
-`app/judging/normalise.py` (pure functions, no I/O) and `app/judging/report.py` (DB read + printable report). Full method, guards, measured numbers, and limits: `JUDGING.md`.
+`app/judging/normalise.py` (pure functions, no I/O), `app/judging/influence.py` (kingmaker
+leave-one-out check), `app/judging/uncertainty.py` (bootstrap chance-of-top-N), and
+`app/judging/report.py` (DB read + printable report). Full method, guards, measured numbers, and
+limits: `JUDGING.md`.
+
+## Community vote (T3)
+
+`GET /vote` renders the quadratic ballot (budget 25 credits, ≤ 3 votes per project, cost = votes²);
+`POST /vote` validates the budget server-side and upserts one `vote` row per
+(`voter_email`, `project_id`). Tallies are hidden until `Event.results_public` is true, then shown
+publicly.
 
 ## Publish flow
 
 1. Organizer opens `/organize`, clicks Publish (or `POST /organize/publish`).
-2. The route computes normalised scores, writes one immutable `Result` row per project, sets `Event.results_public = True`.
+2. The route computes normalised scores, writes one immutable `Result` row per project, sets
+   `Event.results_public = True`, and stores a canonical `ResultBundle` (JSON + SHA-256).
 3. Any further publish attempt returns **409** — results are a snapshot, never recomputed in place.
-4. `GET /results` returns 404 until publishing; afterwards it is public.
+4. `GET /results` shows a "not published yet" notice until publishing; afterwards it renders the
+   ranking. `GET /results/verify` returns the recomputed vs stored digest for independent checking.
 
 ## Fixtures
 
