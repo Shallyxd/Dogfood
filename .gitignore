@@ -1,6 +1,9 @@
 # Dossier — research, prompts, plan. Private, never pushed.
 dossier/
 
+# Reference repos cloned for research. Never pushed.
+ref/
+
 # Runtime / local artefacts
 *.db
 *.db-wal

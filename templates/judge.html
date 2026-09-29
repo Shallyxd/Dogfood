@@ -3,115 +3,156 @@
 {% block title %}Judge Dashboard — DOGFOOD 2026{% endblock %}
 
 {% block content %}
-<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
-  <h1 style="margin:0;">Judge Dashboard</h1>
-  <span class="role-badge">Judge Fixture: {{ fixture_id }}</span>
+<div class="flex items-center justify-between flex-wrap gap-3 mb-6">
+  <div>
+    <h1 style="font-size:1.6rem; font-weight:800; color:var(--gray-900); margin:0 0 4px 0;">Judge Evaluation Queue</h1>
+    <p class="text-sm text-muted" style="margin:0;">Backend-enforced isolation: you only evaluate assigned projects. Peer scores are unreachable.</p>
+  </div>
+  <span class="badge badge-purple" style="padding:5px 12px;">Judge {{ fixture_id }}</span>
 </div>
 
-<div class="alert alert-warning" style="margin-bottom:20px;">
-  <strong>Rubric Weights:</strong>
-  Functionality: {{ "%.2f"|format(rubric.functionality) }},
-  Quality: {{ "%.2f"|format(rubric.quality) }},
-  Innovation: {{ "%.2f"|format(rubric.innovation) }}
-</div>
-
-<div class="detail-card" style="margin-bottom:24px; background:#f8fafc; border-left:4px solid #0366d6;">
-  <h3 style="margin-top:0; margin-bottom:10px; font-size:1.15rem; color:#1a1f36;">Calibration Panel</h3>
-  {% if calibration.has_data %}
-    <p style="margin:0 0 16px 0; font-size:1rem; color:#24292e;">
-      {{ calibration.scale_text }}
-    </p>
-    {% if calibration.anchors %}
-    <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
-      <div style="flex:1; min-width:220px; padding:12px 16px; background:#fff; border:1px solid #e1e4e8; border-radius:6px;">
-        <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px; color:#2e7d32; font-weight:700;">Highest-Consensus Project</div>
-        <div style="font-weight:600; font-size:1.05rem; margin:6px 0 4px 0;"><a href="/projects/{{ calibration.anchors.highest.id }}" style="color:#0366d6; text-decoration:none;">{{ calibration.anchors.highest.title }}</a></div>
-        <div style="font-size:0.9rem; color:#555;">Mean score: <strong>{{ "%.1f"|format(calibration.anchors.highest.mean) }}</strong></div>
+<div class="grid-cards mb-6">
+  <div class="card" style="border-left:3px solid var(--blue);">
+    <div class="card-body">
+      <div class="flex items-center justify-between mb-3">
+        <div class="font-bold text-xs text-muted" style="text-transform:uppercase; letter-spacing:.5px;">Event rubric weights</div>
+        <span class="badge badge-blue">Weights</span>
       </div>
-      <div style="flex:1; min-width:220px; padding:12px 16px; background:#fff; border:1px solid #e1e4e8; border-radius:6px;">
-        <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px; color:#e65100; font-weight:700;">Lowest-Consensus Project</div>
-        <div style="font-weight:600; font-size:1.05rem; margin:6px 0 4px 0;"><a href="/projects/{{ calibration.anchors.lowest.id }}" style="color:#0366d6; text-decoration:none;">{{ calibration.anchors.lowest.title }}</a></div>
-        <div style="font-size:0.9rem; color:#555;">Mean score: <strong>{{ "%.1f"|format(calibration.anchors.lowest.mean) }}</strong></div>
+      <div style="display:flex; gap:12px; text-align:center;">
+        <div style="flex:1; background:var(--gray-50); padding:10px 8px; border-radius:var(--radius); border:1px solid var(--gray-200);">
+          <div class="text-xs text-muted font-semibold">Functionality</div>
+          <div style="font-weight:800; font-size:1.1rem; margin-top:2px;">{{ "%.2f"|format(rubric.functionality) }}</div>
+        </div>
+        <div style="flex:1; background:var(--gray-50); padding:10px 8px; border-radius:var(--radius); border:1px solid var(--gray-200);">
+          <div class="text-xs text-muted font-semibold">Quality</div>
+          <div style="font-weight:800; font-size:1.1rem; margin-top:2px;">{{ "%.2f"|format(rubric.quality) }}</div>
+        </div>
+        <div style="flex:1; background:var(--gray-50); padding:10px 8px; border-radius:var(--radius); border:1px solid var(--gray-200);">
+          <div class="text-xs text-muted font-semibold">Innovation</div>
+          <div style="font-weight:800; font-size:1.1rem; margin-top:2px;">{{ "%.2f"|format(rubric.innovation) }}</div>
+        </div>
       </div>
     </div>
-    <div style="font-size:0.85rem; color:#6a737d; font-style:italic;">Reference points, not targets.</div>
-    {% endif %}
-  {% else %}
-    <p style="margin:0; font-size:0.95rem; color:#586069;">{{ calibration.message }}</p>
-  {% endif %}
+  </div>
+
+  <div class="card" style="border-left:3px solid var(--purple);">
+    <div class="card-body">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-bold text-xs text-muted" style="text-transform:uppercase; letter-spacing:.5px;">Pre-scoring calibration mirror</div>
+        <span class="badge badge-purple">Anchor sync</span>
+      </div>
+      {% if calibration.has_data %}
+        <p class="text-sm font-semibold" style="margin:0 0 10px; color:var(--gray-800);">{{ calibration.scale_text }}</p>
+        {% if calibration.anchors %}
+        <div class="flex flex-wrap gap-2">
+          <div style="flex:1; min-width:140px; background:var(--green-light); border:1px solid #86efac; border-radius:var(--radius); padding:8px 10px;">
+            <div class="text-xs" style="font-weight:700; color:var(--green); text-transform:uppercase;">Highest anchor</div>
+            <div style="font-weight:600; font-size:.85rem; margin-top:2px;">
+              <a href="/projects/{{ calibration.anchors.highest.id }}" style="color:var(--gray-900); text-decoration:none;">{{ calibration.anchors.highest.title }}</a>
+            </div>
+            <div class="text-xs text-muted">Mean: <strong>{{ "%.1f"|format(calibration.anchors.highest.mean) }}</strong></div>
+          </div>
+          <div style="flex:1; min-width:140px; background:var(--amber-light); border:1px solid #fcd34d; border-radius:var(--radius); padding:8px 10px;">
+            <div class="text-xs" style="font-weight:700; color:var(--amber); text-transform:uppercase;">Lowest anchor</div>
+            <div style="font-weight:600; font-size:.85rem; margin-top:2px;">
+              <a href="/projects/{{ calibration.anchors.lowest.id }}" style="color:var(--gray-900); text-decoration:none;">{{ calibration.anchors.lowest.title }}</a>
+            </div>
+            <div class="text-xs text-muted">Mean: <strong>{{ "%.1f"|format(calibration.anchors.lowest.mean) }}</strong></div>
+          </div>
+        </div>
+        <div class="text-xs text-muted" style="margin-top:6px; font-style:italic;">Reference points, not scoring targets.</div>
+        {% endif %}
+      {% else %}
+        <p class="text-sm text-muted" style="margin:0;">{{ calibration.message }}</p>
+      {% endif %}
+    </div>
+  </div>
 </div>
 
-<h2>My Assignments</h2>
+<h2 class="section-title">Assigned projects ({{ assignments | length }})</h2>
 
 {% if assignments %}
-  {% for item in assignments %}
-  <div class="detail-card" style="margin-bottom:20px;">
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
-      <div>
-        <h3 style="margin:0 0 4px 0;">
-          <a href="/projects/{{ item.project.id }}" style="color:#0366d6; text-decoration:none;">{{ item.project.title }}</a>
-          {% if item.project.repo_url %}
-            <a href="/go/{{ item.project.id }}/repo" target="_blank" rel="noopener noreferrer" style="font-size:0.85rem; color:#0366d6; margin-left:8px; text-decoration:none; font-weight:normal;">[Repo &rarr;]</a>
-          {% endif %}
-        </h3>
-        <span style="color:#666; font-size:0.9rem;">Track: {{ item.project.track.name if item.project.track else item.project.track_id }} | Team: {{ item.project.team.name if item.project.team else item.project.team_id }}</span>
-      </div>
-      <div>
-        {% if item.assignment.status == 'done' %}
-          <span class="role-badge" style="background:#e8f5e9; color:#2e7d32;">Scored</span>
-        {% else %}
-          <span class="role-badge" style="background:#fff3e0; color:#e65100;">Pending</span>
+  <div style="display:flex; flex-direction:column; gap:16px;">
+    {% for item in assignments %}
+    <div class="card" style="border-left:3px solid {% if item.assignment.status == 'done' %}var(--green){% else %}var(--amber){% endif %};">
+      <div class="card-body">
+        <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="badge badge-gray">{{ item.project.track.name if item.project.track else item.project.track_id }}</span>
+              <span class="text-xs text-muted">Team: <strong>{{ item.project.team.name if item.project.team else item.project.team_id }}</strong></span>
+            </div>
+            <h3 style="margin:0; font-size:1.15rem; font-weight:700;">
+              <a href="/projects/{{ item.project.id }}" style="color:var(--gray-900); text-decoration:none;">{{ item.project.title }}</a>
+              {% if item.project.repo_url %}
+                <a href="/go/{{ item.project.id }}/repo" target="_blank" rel="noopener noreferrer" class="btn btn-sm" style="margin-left:8px; font-size:.75rem;">Open Repo &nearr;</a>
+              {% endif %}
+            </h3>
+          </div>
+          <div>
+            {% if item.assignment.status == 'done' %}
+              <span class="badge badge-green" style="padding:4px 10px;">✓ Scored</span>
+            {% else %}
+              <span class="badge badge-amber" style="padding:4px 10px;">Pending review</span>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if item.project.summary %}
+          <p class="text-sm" style="color:var(--gray-600); margin:0 0 18px; line-height:1.5;">{{ item.project.summary }}</p>
         {% endif %}
+
+        <form method="post" action="/judge/score" style="background:var(--gray-50); padding:16px; border-radius:var(--radius); border:1px solid var(--gray-200);">
+          <input type="hidden" name="project_id" value="{{ item.project.id }}">
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; margin-bottom:12px;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label style="font-size:.8rem;">Functionality (2–5)</label>
+              <select name="functionality" class="form-control" required>
+                <option value="" disabled {% if not item.scores.get('functionality') %}selected{% endif %}>Select score</option>
+                {% for v in [2, 3, 4, 5] %}
+                  <option value="{{ v }}" {% if item.scores.get('functionality') == v %}selected{% endif %}>{{ v }} ★</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label style="font-size:.8rem;">Quality (2–5)</label>
+              <select name="quality" class="form-control" required>
+                <option value="" disabled {% if not item.scores.get('quality') %}selected{% endif %}>Select score</option>
+                {% for v in [2, 3, 4, 5] %}
+                  <option value="{{ v }}" {% if item.scores.get('quality') == v %}selected{% endif %}>{{ v }} ★</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label style="font-size:.8rem;">Innovation (2–5)</label>
+              <select name="innovation" class="form-control" required>
+                <option value="" disabled {% if not item.scores.get('innovation') %}selected{% endif %}>Select score</option>
+                {% for v in [2, 3, 4, 5] %}
+                  <option value="{{ v }}" {% if item.scores.get('innovation') == v %}selected{% endif %}>{{ v }} ★</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom:12px;">
+            <label style="font-size:.8rem;">Evaluation notes (optional)</label>
+            <input type="text" name="comment" value="{{ item.comment or '' }}" class="form-control" placeholder="Optional comments on implementation or design…">
+          </div>
+
+          <div class="flex justify-between items-center">
+            <span class="text-xs text-muted">Every artefact you open is recorded as a review receipt.</span>
+            <button type="submit" class="btn btn-primary btn-sm">{% if item.assignment.status == 'done' %}Update score{% else %}Submit score{% endif %}</button>
+          </div>
+        </form>
       </div>
     </div>
-
-    <p style="margin:0 0 16px 0; color:#555;">{{ item.project.summary }}</p>
-
-    <form method="post" action="/judge/score" style="border-top:1px solid #eee; padding-top:14px;">
-      <input type="hidden" name="project_id" value="{{ item.project.id }}">
-      <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
-        <div class="form-group" style="margin-bottom:0; flex:1; min-width:120px;">
-          <label style="font-size:0.9rem;">Functionality (2–5)</label>
-          <select name="functionality" class="form-control" required>
-            <option value="" disabled {% if not item.scores.get('functionality') %}selected{% endif %}>— choose —</option>
-            {% for v in [2, 3, 4, 5] %}
-              <option value="{{ v }}" {% if item.scores.get('functionality') == v %}selected{% endif %}>{{ v }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="form-group" style="margin-bottom:0; flex:1; min-width:120px;">
-          <label style="font-size:0.9rem;">Quality (2–5)</label>
-          <select name="quality" class="form-control" required>
-            <option value="" disabled {% if not item.scores.get('quality') %}selected{% endif %}>— choose —</option>
-            {% for v in [2, 3, 4, 5] %}
-              <option value="{{ v }}" {% if item.scores.get('quality') == v %}selected{% endif %}>{{ v }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="form-group" style="margin-bottom:0; flex:1; min-width:120px;">
-          <label style="font-size:0.9rem;">Innovation (2–5)</label>
-          <select name="innovation" class="form-control" required>
-            <option value="" disabled {% if not item.scores.get('innovation') %}selected{% endif %}>— choose —</option>
-            {% for v in [2, 3, 4, 5] %}
-              <option value="{{ v }}" {% if item.scores.get('innovation') == v %}selected{% endif %}>{{ v }}</option>
-            {% endfor %}
-          </select>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label style="font-size:0.9rem;">Comment (optional)</label>
-        <input type="text" name="comment" value="{{ item.comment or '' }}" class="form-control" placeholder="Your review comments...">
-      </div>
-
-      <button type="submit" class="btn btn-primary">Save Score</button>
-    </form>
+    {% endfor %}
   </div>
-  {% endfor %}
 {% else %}
-  <p>No assignments found for your judge account.</p>
+  <div class="card" style="text-align:center; padding:48px 24px;">
+    <div style="font-size:2rem; margin-bottom:12px;">📋</div>
+    <h3 style="margin:0 0 8px;">No assignments found</h3>
+    <p class="text-sm text-muted" style="margin:0;">There are currently no projects assigned to your judging profile.</p>
+  </div>
 {% endif %}
-
 {% endblock %}

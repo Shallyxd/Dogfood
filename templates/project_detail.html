@@ -3,50 +3,64 @@
 {% block title %}{{ project.title }} — DOGFOOD 2026{% endblock %}
 
 {% block content %}
-<div style="margin-bottom:16px;">
-  <a href="/projects" style="color:#0366d6; text-decoration:none;">&larr; Back to Gallery</a>
+<div class="mb-4">
+  <a href="/projects" class="btn btn-sm">&larr; Back to Gallery</a>
 </div>
 
-<div class="detail-card">
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
-    <h1 style="margin:0;">{{ project.title }}</h1>
-    <span class="role-badge" style="background:#e8f5e9; color:#2e7d32; font-size:0.9rem;">{{ project.status }}</span>
+<div class="detail-card mb-6">
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+    <div>
+      <div class="flex items-center gap-2 mb-2">
+        <span class="badge badge-gray">{{ project.track.name if project.track else project.track_id }}</span>
+        {% if project.status == 'submitted' %}
+          <span class="badge badge-green">Submitted</span>
+        {% else %}
+          <span class="badge badge-amber">{{ project.status }}</span>
+        {% endif %}
+      </div>
+      <h1 style="margin:0; font-size:1.75rem; font-weight:800;">{{ project.title }}</h1>
+    </div>
     {% if user and user.role == 'participant' %}
       <a href="/projects/{{ project.id }}/edit" class="btn btn-sm btn-primary">Edit Submission</a>
     {% endif %}
   </div>
 
-  <p style="font-size:1.1rem; color:#444; margin-bottom:24px;">{{ project.summary }}</p>
+  {% if project.summary %}
+    <div style="font-size:1.05rem; color:var(--gray-700); line-height:1.6; margin-bottom:28px; padding-bottom:24px; border-bottom:1px solid var(--gray-200);">
+      {{ project.summary }}
+    </div>
+  {% endif %}
 
-  <table class="table" style="max-width:600px; margin-bottom:20px;">
-    <tbody>
-      <tr>
-        <th style="width:160px;">Track</th>
-        <td>{{ project.track.name if project.track else project.track_id }}</td>
-      </tr>
-      <tr>
-        <th>Team</th>
-        <td>{{ project.team.name if project.team else project.team_id }}</td>
-      </tr>
-      <tr>
-        <th>Repository</th>
-        <td>
-          {% if project.repo_url %}
-            {% if user and user.role == 'judge' %}
-              <a href="/go/{{ project.id }}/repo" target="_blank" rel="noopener noreferrer" style="color:#0366d6;">{{ project.repo_url }}</a>
-            {% else %}
-              <a href="{{ project.repo_url }}" target="_blank" rel="noopener noreferrer" style="color:#0366d6;">{{ project.repo_url }}</a>
-            {% endif %}
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:20px;">
+    <div class="stat-card">
+      <div class="stat-label">Team</div>
+      <div style="font-weight:700; color:var(--gray-900); font-size:1.1rem; margin-top:4px;">
+        {{ project.team.name if project.team else project.team_id }}
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">Repository</div>
+      <div style="margin-top:4px; font-size:0.95rem; word-break:break-all;">
+        {% if project.repo_url %}
+          {% if user and user.role == 'judge' %}
+            <a href="/go/{{ project.id }}/repo" target="_blank" rel="noopener noreferrer" style="font-weight:600; text-decoration:none;">{{ project.repo_url }} &nearr;</a>
+            <div class="text-xs text-muted" style="margin-top:2px;">(opening logs a review receipt)</div>
           {% else %}
-            <span style="color:#888;">None provided</span>
+            <a href="{{ project.repo_url }}" target="_blank" rel="noopener noreferrer" style="font-weight:600; text-decoration:none;">{{ project.repo_url }} &nearr;</a>
           {% endif %}
-        </td>
-      </tr>
-      <tr>
-        <th>Submitted At</th>
-        <td>{{ project.submitted_at.strftime('%Y-%m-%d %H:%M:%S UTC') if project.submitted_at else 'N/A' }}</td>
-      </tr>
-    </tbody>
-  </table>
+        {% else %}
+          <span class="text-muted">None provided</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">Submission Timestamp</div>
+      <div style="font-weight:600; color:var(--gray-800); font-size:0.95rem; margin-top:4px;">
+        {{ project.submitted_at.strftime('%d %b %Y, %H:%M:%S UTC') if project.submitted_at else 'N/A' }}
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

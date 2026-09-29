@@ -26,11 +26,13 @@ No cloud, no API keys, no external services. SQLite database, idempotent seed.
 - **T1 — Submissions:** public gallery of 41 fixture projects; submission route refuses with 422 after the event deadline (`2026-03-01T18:00:00Z`); teams and invite-code joining.
 - **T2 — Judging isolation:** judges see only their own scores via `/api/judge/scores` — requesting another judge's rows returns **403**, enforced in the route, not the UI. Organiser CSV export included.
 - **Normalisation:** per-judge z-scores with flat-rater and single-sample guards, shrinkage toward the global mean, one-click immutable publish (`409` on re-publish), public `/results` only after publishing. See `JUDGING.md` for the maths, the measured numbers, and the limits.
-- **Innovation:** judge calibration mirror (your scale vs the pool, reference anchor cards) and organiser review receipts (which judge opened which artefact, when).
+- **Innovation:** judge calibration mirror (your scale vs the pool, reference anchor cards), organiser review receipts (which judge opened which artefact, when), and a **kingmaker check** that refits the ranking without each judge to flag any single judge who alone moves the prize places.
+- **T3 — community vote:** quadratic voting (`credits = votes²`) on a fixed per-participant budget; tallies stay hidden until results publish, then become public. Route is `/vote`.
+- **Verifiable results:** the published ranking is hashed into a canonical SHA-256 digest, exposed at `/results/verify` so anyone can recompute and confirm the snapshot.
 
 ## Honest limits (what it does not do yet)
 
-- T3/T4 are not built: no community voting, comments, certificates, webhooks, bulk import, or embeddable gallery.
+- T4 is partial: no comments, certificates, webhooks, bulk import, or embeddable gallery.
 - No pairwise judging mode (bonus not attempted — see `JUDGING.md` for why it was deferred).
 - Auth is demo-grade by design: deterministic tokens from `.dogfood.toml` (the acceptance checker requires them), token-in-URL login, logout clears the client cookie only. See `THREAT-MODEL.md`.
 - No rate limiting, no CSRF tokens (SameSite=Lax cookies only), no conflict-of-interest guard on assignments.
@@ -39,17 +41,22 @@ No cloud, no API keys, no external services. SQLite database, idempotent seed.
 ## Repo layout
 
 ```
-app/            FastAPI app (routes, auth, models, seed)
-app/judging/    normalisation maths + report  (normalise.py, report.py)
-templates/      Jinja2 templates (no JavaScript)
-seed/           fixture seed data
-run.py          official acceptance checker (organiser-supplied)
-fixtures.json   official fixtures (organiser-supplied)
-.dogfood.toml   portal descriptor for run.py
+app/                    FastAPI app (routes, auth, models, seed)
+app/judging/            judging maths:
+                          normalise.py    per-judge z-score + shrinkage
+                          influence.py    kingmaker (leave-one-out) check
+                          uncertainty.py  bootstrap chance-of-top-N
+                          report.py       CLI normalisation report
+templates/              Jinja2 templates + self-contained design system (no JS, no CDN)
+seed/                   fixture seed data
+run.py                  official acceptance checker (organiser-supplied)
+fixtures.json           official fixtures (organiser-supplied)
+.dogfood.toml           portal descriptor for run.py
 acceptance-report.txt   last checker run (7/7 PASS)
 ```
 
-`dossier/` (gitignored) holds private research, prompts, and organiser materials.
+`dossier/` (private research) and `ref/` (cloned reference repos) are gitignored and never shipped.
+`portal.db*` are runtime SQLite artefacts, recreated on boot and gitignored.
 
 ## Verify
 
@@ -61,6 +68,6 @@ docker exec dogfood-app-1 python -m app.judging.report   # normalisation report 
 ## Docs
 
 - `ARCHITECTURE.md` — stack, request flow, auth, isolation enforcement point
-- `DATA-MODEL.md` — the 12 tables and their relations
+- `DATA-MODEL.md` — the 15 tables and their relations
 - `JUDGING.md` — normalisation method, guards, measured results, limits
 - `LICENSE` — MIT

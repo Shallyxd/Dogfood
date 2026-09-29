@@ -1,14 +1,67 @@
 {% extends "base.html" %}
 
-{% block title %}Quick Login — DOGFOOD 2026{% endblock %}
+{% block title %}Sign In — DOGFOOD 2026{% endblock %}
 
 {% block content %}
-<h2>Demo Quick Login</h2>
-<p>Click a role to set the session cookie and log in:</p>
-<div style="display:flex; flex-direction:column; gap:12px; max-width:360px; margin-top:16px;">
-  <a href="/login/org_7f2a"><button class="btn" style="width:100%; text-align:left; font-weight:600;">Organizer (org@example.org)</button></a>
-  <a href="/login/jdg_a_91bc"><button class="btn" style="width:100%; text-align:left; font-weight:600;">Judge A (judge_a@example.org)</button></a>
-  <a href="/login/jdg_b_44de"><button class="btn" style="width:100%; text-align:left; font-weight:600;">Judge B (judge_b@example.org)</button></a>
-  <a href="/login/prt_2e88"><button class="btn" style="width:100%; text-align:left; font-weight:600;">Participant (part@example.org)</button></a>
+<div style="max-width:480px; margin:20px auto 40px;">
+  <div class="card">
+    <div class="card-body" style="padding:32px;">
+      <div style="text-align:center; margin-bottom:24px;">
+        <div style="width:48px; height:48px; background:var(--blue-light); color:var(--blue); border-radius:12px; display:inline-flex; align-items:center; justify-content:center; font-size:24px; margin-bottom:12px;">
+          🔑
+        </div>
+        <h1 style="font-size:1.4rem; font-weight:800; margin:0 0 6px 0;">Deterministic sign in</h1>
+        <p class="text-sm text-muted" style="margin:0;">
+          Select a role to set the session cookie. Required by the automated acceptance test runner.
+        </p>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <a href="/login/org_7f2a" style="text-decoration:none;">
+          <div class="card-hover" style="border:1px solid var(--gray-200); border-radius:var(--radius); padding:14px 16px; display:flex; align-items:center; justify-content:space-between; background:#fff;">
+            <div>
+              <div style="font-weight:700; font-size:.95rem; color:var(--gray-900);">Event Organizer</div>
+              <div class="text-xs text-muted" style="margin-top:2px;">org@example.org · token: <code>org_7f2a</code></div>
+            </div>
+            <span class="badge badge-purple">Console &rarr;</span>
+          </div>
+        </a>
+
+        <a href="/login/jdg_a_91bc" style="text-decoration:none;">
+          <div class="card-hover" style="border:1px solid var(--gray-200); border-radius:var(--radius); padding:14px 16px; display:flex; align-items:center; justify-content:space-between; background:#fff;">
+            <div>
+              <div style="font-weight:700; font-size:.95rem; color:var(--gray-900);">Judge A (jdg_01)</div>
+              <div class="text-xs text-muted" style="margin-top:2px;">judge_a@example.org · token: <code>jdg_a_91bc</code></div>
+            </div>
+            <span class="badge badge-blue">Score queue &rarr;</span>
+          </div>
+        </a>
+
+        <a href="/login/jdg_b_44de" style="text-decoration:none;">
+          <div class="card-hover" style="border:1px solid var(--gray-200); border-radius:var(--radius); padding:14px 16px; display:flex; align-items:center; justify-content:space-between; background:#fff;">
+            <div>
+              <div style="font-weight:700; font-size:.95rem; color:var(--gray-900);">Judge B (jdg_02)</div>
+              <div class="text-xs text-muted" style="margin-top:2px;">judge_b@example.org · token: <code>jdg_b_44de</code></div>
+            </div>
+            <span class="badge badge-blue">Score queue &rarr;</span>
+          </div>
+        </a>
+
+        <a href="/login/prt_2e88" style="text-decoration:none;">
+          <div class="card-hover" style="border:1px solid var(--gray-200); border-radius:var(--radius); padding:14px 16px; display:flex; align-items:center; justify-content:space-between; background:#fff;">
+            <div>
+              <div style="font-weight:700; font-size:.95rem; color:var(--gray-900);">Participant</div>
+              <div class="text-xs text-muted" style="margin-top:2px;">part@example.org · token: <code>prt_2e88</code></div>
+            </div>
+            <span class="badge badge-green">Submit &rarr;</span>
+          </div>
+        </a>
+      </div>
+
+      <div class="text-xs text-muted" style="margin-top:20px; text-align:center; line-height:1.4;">
+        Offline deterministic tokens per <code>.dogfood.toml</code>, mapping directly to seeded SQLite users.
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

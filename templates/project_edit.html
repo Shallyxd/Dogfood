@@ -3,43 +3,57 @@
 {% block title %}Edit Submission — DOGFOOD 2026{% endblock %}
 
 {% block content %}
-<h1>Edit Project</h1>
-
-{% if closed %}
-  <div class="alert alert-warning">
-    <strong>Submissions are closed</strong>
-    <p style="margin: 8px 0 0 0;">The submission deadline for this hackathon has passed.</p>
+<div style="max-width:640px; margin:0 auto;">
+  <div class="mb-4">
+    <a href="/projects/{{ project.id }}" class="btn btn-sm">&larr; Back to Project</a>
   </div>
-{% else %}
-  <div class="detail-card" style="max-width: 650px;">
-    <form method="post" action="/projects/{{ project.id }}/edit">
-      <div class="form-group">
-        <label for="title">Project Title *</label>
-        <input type="text" id="title" name="title" required class="form-control" value="{{ project.title }}">
-      </div>
 
-      <div class="form-group">
-        <label for="summary">Summary</label>
-        <textarea id="summary" name="summary" rows="3" class="form-control">{{ project.summary }}</textarea>
-      </div>
+  <div class="card">
+    <div class="card-body" style="padding:28px;">
+      <h1 style="font-size:1.5rem; font-weight:800; margin:0 0 6px 0;">Edit Submission</h1>
+      <p class="text-sm text-muted mb-4">Update details for <code>{{ project.id }}</code> before judging concludes.</p>
 
-      <div class="form-group">
-        <label for="repo_url">Repository URL</label>
-        <input type="url" id="repo_url" name="repo_url" class="form-control" value="{{ project.repo_url or '' }}">
-      </div>
+      {% if closed %}
+        <div class="alert alert-warning" style="margin-bottom:0;">
+          <span style="font-size:1.2rem;">⏱️</span>
+          <div>
+            <strong>Submissions are closed.</strong>
+            <p class="text-sm" style="margin:4px 0 0;">The official deadline has passed. Edits are disabled.</p>
+          </div>
+        </div>
+      {% else %}
+        <form method="post" action="/projects/{{ project.id }}/edit">
+          <div class="form-group">
+            <label for="title">Project Title *</label>
+            <input type="text" id="title" name="title" required class="form-control" value="{{ project.title }}">
+          </div>
 
-      <div class="form-group">
-        <label for="track_id">Track</label>
-        <select id="track_id" name="track_id" class="form-control">
-          {% for track in tracks %}
-            <option value="{{ track.id }}" {% if project.track_id == track.id %}selected{% endif %}>{{ track.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
+          <div class="form-group">
+            <label for="summary">Project Description</label>
+            <textarea id="summary" name="summary" rows="4" class="form-control">{{ project.summary or '' }}</textarea>
+          </div>
 
-      <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Save Changes</button>
-    </form>
+          <div class="form-group">
+            <label for="repo_url">Repository URL</label>
+            <input type="url" id="repo_url" name="repo_url" class="form-control" value="{{ project.repo_url or '' }}">
+          </div>
+
+          <div class="form-group">
+            <label for="track_id">Target Track *</label>
+            <select id="track_id" name="track_id" class="form-control" required>
+              {% for track in tracks %}
+                <option value="{{ track.id }}" {% if project.track_id == track.id %}selected{% endif %}>{{ track.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="flex justify-between items-center" style="margin-top:24px;">
+            <a href="/projects/{{ project.id }}" class="btn">Cancel</a>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+          </div>
+        </form>
+      {% endif %}
+    </div>
   </div>
-{% endif %}
-
+</div>
 {% endblock %}

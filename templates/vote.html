@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Community Vote — DOGFOOD 2026{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+  <div>
+    <h1 style="font-size:1.6rem; font-weight:800; color:var(--gray-900); margin:0 0 4px 0;">Community Vote</h1>
+    <p class="text-sm text-muted" style="margin:0;">Quadratic voting — signal strength fairly, cost scales with the square of your votes.</p>
+  </div>
+  {% if user %}
+    <span class="role-badge">{{ remaining }} credits remaining of {{ budget }}</span>
+  {% endif %}
+</div>
+
+<div class="card mb-6" style="border-left:3px solid var(--blue);">
+  <div class="card-body">
+    <div class="flex items-center justify-between mb-2">
+      <div class="font-bold text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.5px;">How quadratic voting works</div>
+      <span class="badge badge-blue">T3 Community Trust</span>
+    </div>
+    <p class="text-sm" style="margin:0 0 6px; color:var(--gray-700);">
+      Each participant gets <strong>{{ budget }} credits</strong>. A project costs
+      <strong>1 credit for 1 vote, 4 for 2, 9 for 3</strong> (cost = votes²). Everyone gets a fair say,
+      while strong preferences cost proportionally more.
+    </p>
+    <p class="text-xs text-muted" style="margin:0;">
+      {% if is_closed and public_totals %}Vote tallies are public — results have been published.{% else %}Vote totals are revealed publicly once results are published.{% endif %}
+    </p>
+    {% if not user %}
+      <div style="margin-top:14px;">
+        <a href="/login" class="btn btn-primary btn-sm">Login to vote</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if user %}
+<div class="mb-6">
+  <div class="flex items-center justify-between mb-2 text-sm">
+    <span class="text-muted">Credits used: <strong style="color:var(--gray-800);">{{ used_credits }} / {{ budget }}</strong></span>
+    <span class="text-muted">Remaining: <strong style="color:var(--gray-800);">{{ remaining }}</strong></span>
+  </div>
+  <div style="height:9px; background:var(--gray-200); border-radius:999px; overflow:hidden;">
+    <div style="height:100%; width:{{ [(used_credits * 100 // budget), 100] | min }}%; background:{% if remaining == 0 %}linear-gradient(90deg,var(--red),#ef4444){% else %}linear-gradient(90deg,var(--blue),var(--purple)){% endif %}; border-radius:999px; transition:width .3s;"></div>
+  </div>
+</div>
+{% endif %}
+
+{% if is_closed and public_totals %}
+<div class="alert alert-success mb-5">
+  <span style="font-size:1.2rem;">📊</span>
+  <div><strong>Voting is closed.</strong> Community vote tallies are now public.</div>
+</div>
+{% endif %}
+
+{% if projects %}
+<div class="card">
+  <div class="card-body" style="padding:0;">
+    <div style="overflow-x:auto;">
+      <table class="table" style="margin:0; border:none; border-radius:0; box-shadow:none;">
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th style="width:150px;">Track</th>
+            {% if is_closed and public_totals %}<th style="width:130px;" title="Community vote credits">Community Votes</th>{% endif %}
+            {% if user %}<th style="width:290px;">Your Vote (0–{{ max_votes_per_project }})</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in projects %}
+          <tr>
+            <td>
+              <a href="/projects/{{ p.id }}" style="font-weight:600; text-decoration:none;">{{ p.title }}</a>
+              <div class="text-xs text-muted" style="margin-top:2px;">{{ p.summary[:90] }}{% if p.summary | length > 90 %}…{% endif %}</div>
+            </td>
+            <td><span class="badge badge-gray">{{ p.track.name if p.track else p.track_id }}</span></td>
+            {% if is_closed and public_totals %}
+            <td>
+              {% if public_totals.get(p.id, 0) > 0 %}
+                <span class="badge badge-blue">★ {{ public_totals.get(p.id, 0) }}</span>
+              {% else %}
+                <span class="text-muted text-xs">—</span>
+              {% endif %}
+            </td>
+            {% endif %}
+            {% if user %}
+            <td>
+              <form method="post" action="/vote" class="flex items-center gap-2" style="margin:0;">
+                <input type="hidden" name="project_id" value="{{ p.id }}">
+                <div class="flex items-center gap-2">
+                  {% for v in [0, 1, 2, 3] %}
+                  <label style="display:flex; flex-direction:column; align-items:center; cursor:pointer; gap:2px; padding:4px 7px; border:1px solid var(--gray-200); border-radius:7px; background:#fff;">
+                    <input type="radio" name="votes" value="{{ v }}" {% if my_votes.get(p.id, 0) == v %}checked{% endif %} style="cursor:pointer;">
+                    <span class="text-xs" style="color:var(--gray-600);">
+                      {% if v == 0 %}0{% else %}{{ v }}★{% endif %}
+                      <span class="text-muted">({{ v*v }}cr)</span>
+                    </span>
+                  </label>
+                  {% endfor %}
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">
+                  {% if my_votes.get(p.id, 0) > 0 %}Update{% else %}Vote{% endif %}
+                </button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card" style="text-align:center; padding:48px 24px;">
+  <div style="font-size:2rem; margin-bottom:12px;">🗳️</div>
+  <h3 style="margin:0 0 8px;">Nothing to vote on yet</h3>
+  <p class="text-sm text-muted" style="margin:0;">Projects will appear here once submissions open.</p>
+</div>
+{% endif %}
+
+{% endblock %}

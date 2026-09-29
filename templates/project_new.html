@@ -3,43 +3,58 @@
 {% block title %}New Submission — DOGFOOD 2026{% endblock %}
 
 {% block content %}
-<h1>Submit Project</h1>
-
-{% if closed %}
-  <div class="alert alert-warning">
-    <strong>Submissions are closed</strong>
-    <p style="margin: 8px 0 0 0;">The submission deadline for this hackathon has passed.</p>
+<div style="max-width:640px; margin:0 auto;">
+  <div class="mb-4">
+    <a href="/projects" class="btn btn-sm">&larr; Back to Gallery</a>
   </div>
-{% else %}
-  <div class="detail-card" style="max-width: 650px;">
-    <form method="post" action="/projects/new">
-      <div class="form-group">
-        <label for="title">Project Title *</label>
-        <input type="text" id="title" name="title" required class="form-control" placeholder="e.g. Glass Signal">
-      </div>
 
-      <div class="form-group">
-        <label for="summary">Summary</label>
-        <textarea id="summary" name="summary" rows="3" class="form-control" placeholder="Brief summary of your project..."></textarea>
-      </div>
+  <div class="card">
+    <div class="card-body" style="padding:28px;">
+      <h1 style="font-size:1.5rem; font-weight:800; margin:0 0 6px 0;">Submit Project</h1>
+      <p class="text-sm text-muted mb-4">Register your project for evaluation. Late submissions are refused server-side (HTTP 422).</p>
 
-      <div class="form-group">
-        <label for="repo_url">Repository URL</label>
-        <input type="url" id="repo_url" name="repo_url" class="form-control" placeholder="https://github.com/...">
-      </div>
+      {% if closed %}
+        <div class="alert alert-warning" style="margin-bottom:0;">
+          <span style="font-size:1.2rem;">⏱️</span>
+          <div>
+            <strong>Submissions are closed.</strong>
+            <p class="text-sm" style="margin:4px 0 0;">The official deadline for this hackathon has passed. No further entries can be accepted.</p>
+          </div>
+        </div>
+      {% else %}
+        <form method="post" action="/projects/new">
+          <div class="form-group">
+            <label for="title">Project Title *</label>
+            <input type="text" id="title" name="title" required class="form-control" placeholder="e.g. Glass Signal">
+          </div>
 
-      <div class="form-group">
-        <label for="track_id">Track</label>
-        <select id="track_id" name="track_id" class="form-control">
-          {% for track in tracks %}
-            <option value="{{ track.id }}">{{ track.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
+          <div class="form-group">
+            <label for="summary">Project Description</label>
+            <textarea id="summary" name="summary" rows="4" class="form-control" placeholder="Describe your entry, the problem it solves, and its architecture…"></textarea>
+          </div>
 
-      <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Submit Project</button>
-    </form>
+          <div class="form-group">
+            <label for="repo_url">Repository URL</label>
+            <input type="url" id="repo_url" name="repo_url" class="form-control" placeholder="https://github.com/your-team/repo">
+            <div class="text-xs text-muted" style="margin-top:4px;">Judges receive a direct review link and every open is receipted.</div>
+          </div>
+
+          <div class="form-group">
+            <label for="track_id">Target Track *</label>
+            <select id="track_id" name="track_id" class="form-control" required>
+              {% for track in tracks %}
+                <option value="{{ track.id }}">{{ track.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="flex justify-between items-center" style="margin-top:24px;">
+            <a href="/projects" class="btn">Cancel</a>
+            <button type="submit" class="btn btn-primary">Submit Entry &rarr;</button>
+          </div>
+        </form>
+      {% endif %}
+    </div>
   </div>
-{% endif %}
-
+</div>
 {% endblock %}

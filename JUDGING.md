@@ -68,3 +68,63 @@ For completeness: the BLUP (Best Linear Unbiased Predictor) formulation under an
 ## Method note
 
 A 2025 peer-reviewed paper (*Entropy*, MDPI) describes a normalisation pipeline for educational peer review that is structurally similar to ours: per-rater z-scoring followed by shrinkage toward the global mean. Our method is not improvised — it sits in a documented line of published practice.
+
+---
+
+## Kingmaker detection
+
+The organiser console (`/organize`) runs a leave-one-out sensitivity check for every judge:
+
+1. Remove judge j's scores from the pool.
+2. Re-run the full normalisation pipeline on the reduced data.
+3. Compare the top-5 prize set before and after removal, and the winner.
+4. If the set or the winner changes, judge j is flagged as a **kingmaker**.
+
+This check is stricter than ranking stability alone: it finds cases where a single judge's leniency estimate (which rests on a small number of reviews) is the decisive factor in which projects hold prize positions. On the official fixtures, several judges qualify as kingmakers — expected given each judge reviews only 2–11 projects. The flag is informational: an organiser can request additional reviews for contested borderline projects before making the final call.
+
+**Implementation:** `app/judging/influence.py::kingmakers`, called from the `/organize` route. Each project is reviewed only by the removed judge is dropped from both rankings before comparison (its disappearance is a coverage problem, not influence). Complexity is O(J × normalise) — fast enough to run on every organiser page load at fixture scale.
+
+---
+
+## Uncertainty: chance of top N
+
+A single ranking hides how stable each place is. The results page (`/results`) reports a bootstrap probability per project: the fraction of resamples in which the project finishes in the top N (default N = 3).
+
+1. Resample the **judges** with replacement (judges are the unit of variation).
+2. Refit the z-score + shrinkage normaliser on the resampled pool.
+3. Rank, and count how often each project lands in the prize places.
+
+**Implementation:** `app/judging/uncertainty.py::bootstrap_top_probabilities`, 200 resamples, `places=3`. Seeded with `20260301`, so the same data always yields the same numbers — reproducible and checkable. A high percentage is a stable winner; a middling one means the place rests on which judges happened to review the project.
+
+---
+
+## Signed immutable result bundle
+
+At publish time the platform stores a canonical record of the ranking in the `result_bundle` table:
+
+```json
+[
+  { "project_id": "prj_34", "rank": 1, "raw_score": 4.25, "normalised_score": 1.42, "snapshot_at": "2026-09-29T..." },
+  ...
+]
+```
+
+The rows are serialised with `json.dumps(rows, sort_keys=True, separators=(',', ':'))` and hashed with SHA-256. The digest is shown on `/results` and served, alongside the recomputed value and a stored-vs-recomputed check, at:
+
+```
+GET /results/verify
+```
+
+```json
+{
+  "algorithm": "sha256",
+  "rows": 41,
+  "digest": "…",
+  "stored_bundle_digest": "…",
+  "verified": true
+}
+```
+
+**What this gives:** anyone can retrieve the bundle, recompute the SHA-256, and confirm it matches the digest stored at publish time — proving the ranking has not been altered since. No private key is required. This turns "we normalised the scores" into "here is the record, verify it yourself."
+
+**Limitation:** the digest confirms the published ranking has not changed. It does not prove the input scores are authentic — that requires trusting the server's audit trail (`AuditEvent` table, `/api/export/scores.csv`). A full cryptographic chain would sign input data at submission time, which is out of scope for this build.

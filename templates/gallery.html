@@ -3,51 +3,79 @@
 {% block title %}Project Gallery — DOGFOOD 2026{% endblock %}
 
 {% block content %}
-<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
-  <h1 style="margin:0;">Project Gallery</h1>
-  <span style="color:#666; font-size:0.95rem;">Showing {{ projects | length }} projects</span>
+<div class="flex items-center justify-between flex-wrap gap-3 mb-6">
+  <div>
+    <h1 style="font-size:1.6rem; font-weight:800; color:var(--gray-900); margin:0 0 4px 0;">Project Gallery</h1>
+    <p class="text-sm text-muted" style="margin:0;">
+      Browse submitted projects across all tracks · {{ projects | length }} project{{ 's' if projects | length != 1 else '' }}
+    </p>
+  </div>
+  {% if user and user.role == 'participant' %}
+    <a href="/projects/new" class="btn btn-primary">+ Submit Project</a>
+  {% endif %}
 </div>
 
-<form method="get" action="/projects" style="display:flex; gap:8px; margin-bottom:20px;">
-  <input
-    type="text"
-    name="q"
-    value="{{ q or '' }}"
-    placeholder="Search projects by title..."
-    class="form-control"
-    style="flex:1;"
-  >
-  <button type="submit" class="btn btn-primary">Search</button>
-  {% if q %}
-    <a href="/projects" class="btn">Clear</a>
-  {% endif %}
-</form>
+<div class="card mb-6">
+  <div class="card-body" style="padding:16px 20px;">
+    <form method="get" action="/projects" class="flex items-center flex-wrap gap-2" style="margin:0;">
+      <input
+        type="text"
+        name="q"
+        value="{{ q or '' }}"
+        placeholder="Search by title (e.g. Glass Signal, Iron Switch)…"
+        class="form-control"
+        style="flex:1; min-width:240px;"
+      >
+      <button type="submit" class="btn btn-primary">Search</button>
+      {% if q %}<a href="/projects" class="btn">Clear Filter</a>{% endif %}
+    </form>
+  </div>
+</div>
 
 {% if projects %}
-<table class="table">
-  <thead>
-    <tr>
-      <th>Project Title</th>
-      <th>Track</th>
-      <th>Team</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for p in projects %}
-    <tr>
-      <td>
-        <a href="/projects/{{ p.id }}" style="font-weight:600; color:#0366d6; text-decoration:none;">
-          {{ p.title }}
-        </a>
-      </td>
-      <td>{{ p.track.name if p.track else p.track_id }}</td>
-      <td>{{ p.team.name if p.team else p.team_id }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="card">
+  <div class="card-body" style="padding:0;">
+    <div style="overflow-x:auto;">
+      <table class="table" style="margin:0; border:none; border-radius:0; box-shadow:none;">
+        <thead>
+          <tr>
+            <th style="width:44%;">Project</th>
+            <th style="width:24%;">Track</th>
+            <th style="width:22%;">Team</th>
+            <th style="width:10%; text-align:right;">Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in projects %}
+          <tr>
+            <td>
+              <a href="/projects/{{ p.id }}" style="font-weight:600; text-decoration:none; color:var(--gray-900);">
+                {{ p.title }}
+              </a>
+              {% if p.summary %}
+                <div class="text-xs text-muted" style="margin-top:2px; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden;">
+                  {{ p.summary }}
+                </div>
+              {% endif %}
+            </td>
+            <td><span class="badge badge-gray">{{ p.track.name if p.track else p.track_id }}</span></td>
+            <td><span class="text-sm font-semibold" style="color:var(--gray-700);">{{ p.team.name if p.team else p.team_id }}</span></td>
+            <td style="text-align:right;">
+              <a href="/projects/{{ p.id }}" class="btn btn-sm">View &rarr;</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 {% else %}
-<p>No projects found matching "{{ q }}".</p>
+<div class="card" style="text-align:center; padding:48px 24px;">
+  <div style="font-size:2rem; margin-bottom:12px;">🔍</div>
+  <h3 style="margin:0 0 8px 0;">No projects found</h3>
+  <p class="text-muted text-sm" style="margin:0 0 20px 0;">Nothing matches your search for &ldquo;{{ q }}&rdquo;.</p>
+  <a href="/projects" class="btn btn-primary btn-sm">Clear Search</a>
+</div>
 {% endif %}
-
 {% endblock %}

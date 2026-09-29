@@ -1,5 +1,7 @@
 import csv
+import hashlib
 import io
+import json
 import secrets
 import statistics
 from contextlib import asynccontextmanager
@@ -12,18 +14,25 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import engine, Base, SessionLocal, get_db
-from app.models import Event, Track, Team, TeamMember, Project, User, Judge, Assignment, Score, Result, ReviewEvent, AuditEvent
+from app.models import Event, Track, Team, TeamMember, Project, User, Judge, Assignment, Score, Result, ReviewEvent, AuditEvent, Vote, ResultBundle
 from app.seed import run_seed, print_seed_header
 from app.judging.normalise import normalise
+from app.judging.influence import kingmakers
+from app.judging.uncertainty import bootstrap_top_probabilities
 from app.auth import (
     SessionAuthMiddleware,
     get_current_user,
     require_judge,
     require_organizer,
     require_participant,
+    require_user,
 )
 
 JUDGE_ALIASES = {"judge_a": "jdg_01", "judge_b": "jdg_02"}
+
+# T3 — quadratic voting parameters. Cost of v votes on one project is v² credits.
+VOTE_BUDGET = 25
+MAX_VOTES_PER_PROJECT = 3
 
 
 @asynccontextmanager
@@ -712,6 +721,38 @@ async def organize_dashboard(
         .all()
     )
 
+    # Kingmaker check: whose single removal alone moves the prize places?
+    event = db.query(Event).first()
+    rubric = (event.rubric if event and event.rubric else None) or {
+        "functionality": 1.0 / 3.0,
+        "quality": 1.0 / 3.0,
+        "innovation": 1.0 / 3.0,
+    }
+    score_rows = db.query(Score).all()
+    crit_scores: dict[str, dict[str, dict[str, int]]] = {}
+    for s in score_rows:
+        crit_scores.setdefault(s.judge_fixture_id, {}).setdefault(s.project_id, {})[
+            s.criterion
+        ] = s.value
+    weighted_scores: dict[str, dict[str, float]] = {}
+    for j_id, p_map in crit_scores.items():
+        for p_id, crits in p_map.items():
+            weighted_scores.setdefault(j_id, {})[p_id] = sum(
+                crits.get(c, 0) * rubric.get(c, 1.0 / 3.0) for c in crits
+            )
+    title_by_id = {p.id: p.title for p in projects}
+    kingmaker_findings = []
+    for km in kingmakers(weighted_scores):
+        kingmaker_findings.append(
+            {
+                **km,
+                "entered_titles": [title_by_id.get(i, i) for i in km["entered"]],
+                "left_titles": [title_by_id.get(i, i) for i in km["left"]],
+                "winner_before_title": title_by_id.get(km["winner_before"], km["winner_before"]),
+                "winner_after_title": title_by_id.get(km["winner_after"], km["winner_after"]),
+            }
+        )
+
     return templates.TemplateResponse(
         request=request,
         name="organize.html",
@@ -720,6 +761,8 @@ async def organize_dashboard(
             "judge_progress": judge_progress,
             "project_reviews": project_reviews,
             "audit_events": audit_events,
+            "kingmaker_findings": kingmaker_findings,
+            "kingmaker_places": 5,
             "user": request.state.user,
         },
     )
@@ -913,9 +956,54 @@ async def publish_results(
     _log_audit(db, user, "publish_results", f"{len(ranked_projects)} projects ranked, snapshot immutable")
     db.commit()
 
+    # Persist the signed, recomputable bundle once, at publish time.
+    if db.query(ResultBundle).count() == 0:
+        published_rows = db.query(Result).order_by(Result.rank.asc()).all()
+        digest = _result_snapshot_digest(published_rows)
+        canonical = [
+            {
+                "project_id": r.project_id,
+                "rank": r.rank,
+                "raw_score": round(float(r.raw_score), 6),
+                "normalised_score": round(float(r.normalised_score), 6),
+                "snapshot_at": r.snapshot_at.isoformat() if r.snapshot_at else None,
+            }
+            for r in published_rows
+        ]
+        db.add(
+            ResultBundle(
+                bundle_json=json.dumps(canonical, sort_keys=True, separators=(",", ":")),
+                digest=digest or "",
+                created_at=now,
+            )
+        )
+        db.commit()
+
     if "application/json" in request.headers.get("accept", "") or "application/json" in request.headers.get("content-type", ""):
         return JSONResponse(status_code=200, content={"status": "published", "count": len(ranked_projects)})
     return RedirectResponse(url="/results", status_code=303)
+
+
+def _result_snapshot_digest(results: list) -> str | None:
+    """Canonical, recomputable SHA-256 of the published ranking.
+
+    Anyone can rebuild the same bytes from the exported CSV and check the digest;
+    it turns 'immutable snapshot' from a claim into something verifiable.
+    """
+    if not results:
+        return None
+    canonical = [
+        {
+            "project_id": r.project_id,
+            "rank": r.rank,
+            "raw_score": round(float(r.raw_score), 6),
+            "normalised_score": round(float(r.normalised_score), 6),
+            "snapshot_at": r.snapshot_at.isoformat() if r.snapshot_at else None,
+        }
+        for r in sorted(results, key=lambda x: (x.rank, x.project_id))
+    ]
+    payload = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 @app.get("/results", response_class=HTMLResponse)
@@ -946,7 +1034,29 @@ async def results_page(request: Request, db: Session = Depends(get_db)):
                 "raw_score": r.raw_score,
                 "reviews_count": len(distinct_judges),
                 "snapshot_at": r.snapshot_at,
+                "top_prob": None,
             })
+
+        # Chance-of-top-N: resample judges, refit, count prize-place finishes.
+        rubric = (event.rubric if event and event.rubric else None) or {
+            "functionality": 1.0 / 3.0,
+            "quality": 1.0 / 3.0,
+            "innovation": 1.0 / 3.0,
+        }
+        crit_scores: dict[str, dict[str, dict[str, int]]] = {}
+        for s in db.query(Score).all():
+            crit_scores.setdefault(s.judge_fixture_id, {}).setdefault(s.project_id, {})[
+                s.criterion
+            ] = s.value
+        weighted_scores: dict[str, dict[str, float]] = {}
+        for j_id, p_map in crit_scores.items():
+            for p_id, crits in p_map.items():
+                weighted_scores.setdefault(j_id, {})[p_id] = sum(
+                    crits.get(c, 0) * rubric.get(c, 1.0 / 3.0) for c in crits
+                )
+        top_probs = bootstrap_top_probabilities(weighted_scores, places=3)
+        for row in results_data:
+            row["top_prob"] = top_probs.get(row["project"].id)
 
     return templates.TemplateResponse(
         request=request,
@@ -954,7 +1064,40 @@ async def results_page(request: Request, db: Session = Depends(get_db)):
         context={
             "published": is_published,
             "results": results_data,
+            "top_places": 3,
+            "snapshot_digest": _result_snapshot_digest(results) if is_published else None,
             "user": request.state.user,
+        },
+    )
+
+
+@app.get("/results/verify")
+def verify_results(db: Session = Depends(get_db)):
+    """Public, recomputable proof of the published snapshot."""
+    event = db.query(Event).first()
+    results = db.query(Result).order_by(Result.rank.asc()).all()
+    if not results:
+        return JSONResponse(status_code=404, content={"detail": "Results not published"})
+    digest = _result_snapshot_digest(results)
+    stored = db.query(ResultBundle).order_by(ResultBundle.id.desc()).first()
+    return JSONResponse(
+        status_code=200,
+        content={
+            "algorithm": "sha256",
+            "canonical": "json.dumps(rows, sort_keys=True, separators=(',', ':'))",
+            "fields": [
+                "project_id",
+                "rank",
+                "raw_score",
+                "normalised_score",
+                "snapshot_at",
+            ],
+            "rows": len(results),
+            "snapshot_at": results[0].snapshot_at.isoformat() if results[0].snapshot_at else None,
+            "event": event.name if event else None,
+            "digest": digest,
+            "stored_bundle_digest": stored.digest if stored else None,
+            "verified": bool(stored and stored.digest == digest),
         },
     )
 
@@ -1269,3 +1412,112 @@ async def edit_project(
         
     db.commit()
     return RedirectResponse(url=f"/projects/{project.id}", status_code=303)
+
+
+# --- T3 Community Voting (quadratic) ---
+
+
+def _voting_closed(db: Session) -> bool:
+    """Voting closes once the organiser publishes the immutable results snapshot."""
+    event = db.query(Event).first()
+    return bool(event and event.results_public)
+
+
+@app.get("/vote", response_class=HTMLResponse)
+async def vote_page(request: Request, db: Session = Depends(get_db)):
+    user = getattr(request.state, "user", None)
+    is_closed = _voting_closed(db)
+    projects = (
+        db.query(Project)
+        .options(joinedload(Project.track))
+        .order_by(Project.title.asc())
+        .all()
+    )
+    votes = db.query(Vote).all()
+
+    my_votes: dict[str, int] = {}
+    used_credits = 0
+    if user:
+        for v in votes:
+            if v.voter_email == user.email:
+                used_credits += v.credits
+                my_votes[v.project_id] = int(round(v.credits ** 0.5))
+
+    public_totals: dict[str, int] = {}
+    if is_closed:
+        for v in votes:
+            public_totals[v.project_id] = public_totals.get(v.project_id, 0) + v.credits
+
+    return templates.TemplateResponse(
+        request=request,
+        name="vote.html",
+        context={
+            "projects": projects,
+            "user": user,
+            "budget": VOTE_BUDGET,
+            "max_votes_per_project": MAX_VOTES_PER_PROJECT,
+            "used_credits": used_credits,
+            "remaining": max(VOTE_BUDGET - used_credits, 0),
+            "my_votes": my_votes,
+            "is_closed": is_closed,
+            "public_totals": public_totals,
+        },
+    )
+
+
+@app.post("/vote")
+async def submit_vote(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    if _voting_closed(db):
+        return JSONResponse(status_code=422, content={"detail": "Voting is closed"})
+
+    form = await request.form()
+    project_id = str(form.get("project_id", "")).strip()
+    try:
+        votes_cast = int(str(form.get("votes", "0")))
+    except (TypeError, ValueError):
+        votes_cast = 0
+    votes_cast = max(0, min(votes_cast, MAX_VOTES_PER_PROJECT))
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    existing = (
+        db.query(Vote)
+        .filter(Vote.voter_email == user.email, Vote.project_id == project_id)
+        .first()
+    )
+    other_credits = sum(
+        v.credits
+        for v in db.query(Vote).filter(Vote.voter_email == user.email).all()
+        if v.project_id != project_id
+    )
+    new_cost = votes_cast * votes_cast
+    if other_credits + new_cost > VOTE_BUDGET:
+        return JSONResponse(
+            status_code=422,
+            content={"detail": "Not enough voting credits for that allocation"},
+        )
+
+    now = datetime.now(timezone.utc)
+    if votes_cast == 0:
+        if existing:
+            db.delete(existing)
+    elif existing:
+        existing.credits = new_cost
+        existing.cast_at = now
+    else:
+        db.add(
+            Vote(
+                voter_email=user.email,
+                project_id=project_id,
+                credits=new_cost,
+                cast_at=now,
+            )
+        )
+    db.commit()
+    return RedirectResponse(url="/vote", status_code=303)

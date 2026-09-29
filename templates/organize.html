@@ -66,6 +66,49 @@
   </form>
 </div>
 
+<div class="detail-card" style="margin-bottom:24px; border-left:4px solid var(--purple);">
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+    <div>
+      <h2 style="margin:0;">Kingmaker Check</h2>
+      <p class="text-xs text-muted" style="margin:4px 0 0;">Refits the ranking without each judge. A judge is a kingmaker when removing them alone changes the top {{ kingmaker_places }} places or the winner.</p>
+    </div>
+    {% if kingmaker_findings %}
+      <span class="badge badge-amber">{{ kingmaker_findings | length }} flagged</span>
+    {% else %}
+      <span class="badge badge-green">No single point of failure</span>
+    {% endif %}
+  </div>
+
+  {% if kingmaker_findings %}
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      {% for k in kingmaker_findings %}
+      <div style="background:var(--gray-50); border:1px solid var(--gray-200); border-radius:var(--radius); padding:12px 14px;">
+        <div class="flex items-center justify-between flex-wrap gap-2 mb-1">
+          <span style="font-weight:700; color:var(--gray-900);"><code>{{ k.judge }}</code> · {{ k.reviews }} review{{ 's' if k.reviews != 1 else '' }}</span>
+          {% if k.changes_winner %}
+            <span class="badge badge-red">Changes the winner</span>
+          {% else %}
+            <span class="badge badge-amber">Moves the prize places</span>
+          {% endif %}
+        </div>
+        {% if k.changes_winner %}
+          <div class="text-xs" style="color:var(--gray-700);">Winner <strong>{{ k.winner_before_title }}</strong> &rarr; <strong>{{ k.winner_after_title }}</strong> without this judge.</div>
+        {% endif %}
+        {% if k.entered_titles %}
+          <div class="text-xs" style="color:var(--gray-700); margin-top:2px;">Enters top {{ kingmaker_places }}: {{ k.entered_titles | join(', ') }}</div>
+        {% endif %}
+        {% if k.left_titles %}
+          <div class="text-xs" style="color:var(--gray-700); margin-top:2px;">Leaves top {{ kingmaker_places }}: {{ k.left_titles | join(', ') }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <p class="text-xs text-muted" style="margin:12px 0 0; font-style:italic;">Informational only — a flag asks for a second look, it does not change any score.</p>
+  {% else %}
+    <p class="text-sm text-muted" style="margin:0;">No judge is load-bearing on the prize places: the ranking is stable to any single removal.</p>
+  {% endif %}
+</div>
+
 <h2>Judge Progress</h2>
 <table class="table" style="margin-bottom:28px;">
   <thead>

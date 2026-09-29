@@ -3,15 +3,27 @@
 {% block title %}Create Team — DOGFOOD 2026{% endblock %}
 
 {% block content %}
-<h1>Create Team</h1>
+<div style="max-width:520px; margin:0 auto;">
+  <div class="mb-4">
+    <a href="/projects" class="btn btn-sm">&larr; Back to Gallery</a>
+  </div>
 
-<div class="detail-card" style="max-width: 500px;">
-  <form method="post" action="/teams">
-    <div class="form-group">
-      <label for="name">Team Name</label>
-      <input type="text" id="name" name="name" class="form-control" placeholder="Enter team name...">
+  <div class="card">
+    <div class="card-body" style="padding:28px;">
+      <h1 style="font-size:1.5rem; font-weight:800; margin:0 0 6px 0;">Create a Team</h1>
+      <p class="text-sm text-muted mb-4">Set up a team for your entry and get an invite link for teammates.</p>
+
+      <form method="post" action="/teams">
+        <div class="form-group">
+          <label for="name">Team Name *</label>
+          <input type="text" id="name" name="name" class="form-control" placeholder="e.g. Iron Switch Engineering" required>
+        </div>
+        <div class="flex justify-between items-center" style="margin-top:20px;">
+          <a href="/projects" class="btn">Cancel</a>
+          <button type="submit" class="btn btn-primary">Create Team &rarr;</button>
+        </div>
+      </form>
     </div>
-    <button type="submit" class="btn btn-primary">Create Team</button>
-  </form>
+  </div>
 </div>
 {% endblock %}

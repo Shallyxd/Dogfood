@@ -3,85 +3,140 @@
 {% block title %}Results — DOGFOOD 2026{% endblock %}
 
 {% block content %}
-<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
-  <h1 style="margin:0;">Hackathon Results</h1>
+<div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+  <div>
+    <h1 style="font-size:1.6rem; font-weight:800; color:var(--gray-900); margin:0 0 4px 0;">Hackathon Results</h1>
+    <p class="text-sm text-muted" style="margin:0;">Bias-corrected rankings, snapshotted at publish time.</p>
+  </div>
   {% if published %}
-    <span class="role-badge" style="background:#e8f5e9; color:#2e7d32;">Immutable Snapshot Published</span>
+    <span class="badge badge-green" style="padding:5px 12px;">Immutable snapshot published</span>
   {% endif %}
 </div>
 
 {% if not published %}
   <div class="alert alert-warning">
-    <strong>Results not published yet.</strong>
-    <p style="margin: 6px 0 0 0;">Judging is ongoing. Check back once the organizer publishes final rankings.</p>
+    <span style="font-size:1.2rem;">⏳</span>
+    <div>
+      <strong>Results not published yet.</strong>
+      <p class="text-sm" style="margin:6px 0 0;">Judging is ongoing. Check back once the organiser publishes the final rankings.</p>
+    </div>
   </div>
 {% else %}
 
-  <div class="detail-card" style="margin-bottom:24px; background:#f8fafc; border-left:4px solid #0366d6;">
-    <h3 style="margin-top:0; margin-bottom:10px; font-size:1.1rem; color:#1a1f36;">Normalisation Method</h3>
-    <p style="margin:0 0 10px 0; font-size:0.95rem; color:#24292e;">
-      Raw scores are converted to per-judge z-scores before ranking.
-      A harsh judge's 3 and a lenient judge's 3 stop being the same number.
-      Projects with few reviews are pulled toward the global mean (Bayesian shrinkage, weight&nbsp;=&nbsp;1).
-      Judges with fewer than 2 reviews are excluded from normalisation — their raw scores remain in the CSV
-      export. Judges with zero variance across their reviews (flat raters) are mean-centred instead: they
-      contribute no signal and no noise. Full guards in <code>JUDGING.md</code>.
+  <div class="detail-card mb-6" style="border-left:4px solid var(--blue);">
+    <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+      <h3 style="margin:0; font-size:1.05rem;">How these rankings were made</h3>
+      <span class="badge badge-blue">Method card</span>
+    </div>
+    <p class="text-sm" style="margin:0 0 10px; color:var(--gray-700);">
+      Raw scores are converted to per-judge z-scores before ranking, so a harsh judge's 3 and a lenient
+      judge's 3 stop being the same number. Projects with few reviews are pulled toward the global mean
+      (Bayesian shrinkage). Judges with fewer than 2 reviews are excluded from normalisation — their raw
+      scores stay in the CSV export. Flat raters (zero variance) are mean-centred: no signal, no noise.
+      Full guards in <code>JUDGING.md</code>.
     </p>
-    <p style="margin:0 0 10px 0; font-size:0.95rem; color:#24292e;">
+    <p class="text-sm" style="margin:0 0 10px; color:var(--gray-700);">
       <strong>Formula:</strong>
-      <code style="background:#eef; padding:2px 6px; border-radius:3px; font-size:0.9rem;">
-        shrunk_score = (n × mean_z + global_mean) / (n + 1)
-      </code>
+      <code>shrunk_score = (n × mean_z + global_mean) / (n + 1)</code>
     </p>
-    <p style="margin:0; font-size:0.95rem; color:#24292e;">
-      <strong>Measured on fixture data:</strong>
-      judge harshness spread (std of per-judge means)&nbsp;
-      <strong>before</strong> normalisation = 0.42&nbsp;→&nbsp;<strong>after</strong> = 0.00.
-      Rank movements: mostly 0–1, max ±4 places.
-      Full derivation, guards, and limits: <code>JUDGING.md</code> in the repository.
+    <p class="text-sm" style="margin:0 0 10px; color:var(--gray-700);">
+      <strong>Measured on fixture data:</strong> judge harshness spread (std of per-judge means)
+      <strong>before</strong> = 0.42 → <strong>after</strong> = 0.00. Rank movements mostly 0–1, max ±4 places.
+    </p>
+    <p class="text-sm" style="margin:0; color:var(--gray-700);">
+      <strong>Chance of top {{ top_places }}:</strong> judges are resampled with replacement, the normaliser is
+      refitted, and we count how often each project finishes in the prize places. A high number is a stable
+      winner; a middling number means the place rests on which judges happened to review it. Deterministic
+      (fixed seed), so the figure is reproducible.
     </p>
   </div>
 
-  <table class="table">
-    <thead>
-      <tr>
-        <th style="width:70px;">Rank</th>
-        <th>Project</th>
-        <th>Track</th>
-        <th title="Weighted raw mean across all judges who reviewed this project">Raw Avg</th>
-        <th title="Z-score normalised, shrinkage-adjusted score">Normalised</th>
-        <th title="Number of distinct judges who submitted scores">Reviews</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in results %}
-      <tr>
-        <td><strong>#{{ r.rank }}</strong></td>
-        <td>
-          <a href="/projects/{{ r.project.id }}" style="font-weight:600; color:#0366d6; text-decoration:none;">
-            {{ r.project.title }}
-          </a>
-        </td>
-        <td>{{ r.project.track.name if r.project and r.project.track else (r.project.track_id if r.project else 'N/A') }}</td>
-        <td>
-          <span style="color:#586069; font-size:0.95rem;">{{ "%.2f"|format(r.raw_score) }}</span>
-        </td>
-        <td>
-          <span class="role-badge" style="background:#e8f5e9; color:#2e7d32; font-size:0.95rem;">{{ "%.2f"|format(r.normalised_score) }}</span>
-        </td>
-        <td>
-          <span style="font-size:0.9rem; color:#555;">reviewed by {{ r.reviews_count }} judge{{ 's' if r.reviews_count != 1 else '' }}</span>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="card">
+    <div class="card-body" style="padding:0;">
+      <div style="overflow-x:auto;">
+        <table class="table" style="margin:0; border:none; border-radius:0; box-shadow:none;">
+          <thead>
+            <tr>
+              <th style="width:80px;">Rank</th>
+              <th>Project</th>
+              <th style="width:150px;">Track</th>
+              <th title="Weighted raw mean across all judges who reviewed this project">Raw Avg</th>
+              <th title="Z-score normalised, shrinkage-adjusted score">Normalised</th>
+              <th title="Bootstrap probability of finishing in the top {{ top_places }}, resampling judges">Chance of top {{ top_places }}</th>
+              <th title="Number of distinct judges who submitted scores">Reviews</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in results %}
+            <tr>
+              <td>
+                {% if r.rank == 1 %}
+                  <span class="badge badge-amber">🥇 #1</span>
+                {% elif r.rank == 2 %}
+                  <span class="badge badge-gray">🥈 #2</span>
+                {% elif r.rank == 3 %}
+                  <span class="badge badge-amber">🥉 #3</span>
+                {% else %}
+                  <strong style="color:var(--gray-600);">#{{ r.rank }}</strong>
+                {% endif %}
+              </td>
+              <td>
+                <a href="/projects/{{ r.project.id }}" style="font-weight:600; text-decoration:none; color:var(--gray-900);">
+                  {{ r.project.title }}
+                </a>
+              </td>
+              <td>{{ r.project.track.name if r.project and r.project.track else (r.project.track_id if r.project else 'N/A') }}</td>
+              <td><span style="color:var(--gray-600);">{{ "%.2f"|format(r.raw_score) }}</span></td>
+              <td><span class="badge badge-green">{{ "%.2f"|format(r.normalised_score) }}</span></td>
+              <td>
+                {% if r.top_prob is not none %}
+                  {% if r.top_prob >= 0.9 %}
+                    <span class="badge badge-green">{{ (r.top_prob * 100) | round | int }}%</span>
+                  {% elif r.top_prob >= 0.5 %}
+                    <span class="badge badge-blue">{{ (r.top_prob * 100) | round | int }}%</span>
+                  {% elif r.top_prob > 0 %}
+                    <span class="badge badge-gray">{{ (r.top_prob * 100) | round | int }}%</span>
+                  {% else %}
+                    <span class="text-muted text-xs">—</span>
+                  {% endif %}
+                {% else %}
+                  <span class="text-muted text-xs">—</span>
+                {% endif %}
+              </td>
+              <td><span class="text-sm text-muted">reviewed by {{ r.reviews_count }} judge{{ 's' if r.reviews_count != 1 else '' }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
-  <p style="margin-top:16px; font-size:0.85rem; color:#6a737d;">
+  <p class="text-xs text-muted" style="margin-top:16px;">
     Results are an immutable snapshot — re-publishing is blocked (HTTP&nbsp;409).
-    Raw and normalised scores are both available in the organizer CSV export.
+    Raw and normalised scores are both available in the organiser CSV export.
     Snapshot taken: {{ results[0].snapshot_at.strftime('%Y-%m-%d %H:%M UTC') if results and results[0].snapshot_at else 'unknown' }}.
   </p>
-{% endif %}
 
+  {% if snapshot_digest %}
+  <div class="card mt-4">
+    <div class="card-body">
+      <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+        <div class="font-bold text-xs text-muted" style="text-transform:uppercase; letter-spacing:.5px;">Verifiable snapshot</div>
+        <span class="badge badge-purple">SHA-256</span>
+      </div>
+      <p class="text-sm" style="margin:0 0 10px; color:var(--gray-700);">
+        The published ranking is hashed into a canonical digest. Anyone can recompute it and check it
+        against the machine-readable bundle — immutability you can verify, not just trust.
+      </p>
+      <div class="mono text-xs" style="background:var(--gray-100); border:1px solid var(--gray-200); border-radius:var(--radius); padding:10px 12px; word-break:break-all; color:var(--gray-800); margin-bottom:10px;">
+        {{ snapshot_digest }}
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <a href="/results/verify" class="btn btn-sm">Open verification bundle (JSON)</a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+{% endif %}
 {% endblock %}

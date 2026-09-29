@@ -3,9 +3,19 @@
 {% block title %}404 Not Found — DOGFOOD 2026{% endblock %}
 
 {% block content %}
-<div class="detail-card" style="text-align:center; padding:40px 20px;">
-  <h1>404 Not Found</h1>
-  <p style="color:#666; margin-bottom:20px;">{{ detail or "The requested page or project does not exist." }}</p>
-  <a href="/projects" class="btn btn-primary">Return to Gallery</a>
+<div style="max-width:480px; margin:40px auto; text-align:center;">
+  <div class="card">
+    <div class="card-body" style="padding:40px 24px;">
+      <div style="font-size:3rem; line-height:1; margin-bottom:16px;">🔍</div>
+      <h1 style="font-size:1.6rem; font-weight:800; margin:0 0 8px 0;">404 — Not Found</h1>
+      <p class="text-sm text-muted" style="margin:0 0 24px 0;">
+        {{ detail or "The requested page, project, or resource could not be found." }}
+      </p>
+      <div class="flex justify-center gap-2">
+        <a href="/projects" class="btn btn-primary">Return to Gallery</a>
+        <a href="/" class="btn">Home</a>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

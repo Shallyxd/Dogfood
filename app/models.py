@@ -92,6 +92,7 @@ class Project(Base):
     assignments = relationship("Assignment", back_populates="project")
     result = relationship("Result", back_populates="project", uselist=False)
     review_events = relationship("ReviewEvent", back_populates="project", order_by="ReviewEvent.opened_at")
+    votes = relationship("Vote", back_populates="project")
 
 
 class Judge(Base):
@@ -182,4 +183,33 @@ class AuditEvent(Base):
     actor_email = Column(String, nullable=False)
     action = Column(String, nullable=False)  # publish_results | rubric_update | batch_assign
     detail = Column(String, nullable=True)
+    created_at = Column(DateTime, nullable=False)
+
+
+class Vote(Base):
+    """T3 — Community vote. Each registered participant gets a quadratic vote budget."""
+
+    __tablename__ = "vote"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    voter_email = Column(String, nullable=False, index=True)
+    project_id = Column(String, ForeignKey("project.id"), nullable=False)
+    credits = Column(Integer, nullable=False, default=1)  # credits spent (√ votes cast)
+    cast_at = Column(DateTime, nullable=False)
+
+    project = relationship("Project", back_populates="votes")
+
+    __table_args__ = (
+        UniqueConstraint("voter_email", "project_id", name="uq_vote_voter_project"),
+    )
+
+
+class ResultBundle(Base):
+    """T4/bonus — Immutable signed JSON bundle of published results."""
+
+    __tablename__ = "result_bundle"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    bundle_json = Column(Text, nullable=False)   # canonical JSON
+    digest = Column(String, nullable=False)       # sha256 hex
     created_at = Column(DateTime, nullable=False)

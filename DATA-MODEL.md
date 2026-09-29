@@ -1,6 +1,6 @@
 # Data model
 
-SQLite via SQLAlchemy. Twelve tables.
+SQLite via SQLAlchemy. Fifteen tables.
 
 ## Core
 
@@ -23,7 +23,16 @@ SQLite via SQLAlchemy. Twelve tables.
 
 - **review_event** — `id`, `judge_fixture_id` (indexed), `project_id` → project (indexed), `artefact` (`repo` | `description`), `opened_at`. Append-only log of judges inspecting entries: a row when a judge opens a project detail page, and when they follow the `/go/{project_id}/repo` redirect.
 
+## Community vote (T3)
+
+- **vote** — `id`, `voter_email` (indexed), `project_id` → project, `credits` (cost = votes²), `cast_at`; unique on (`voter_email`, `project_id`). Quadratic voting; tallies hidden until results publish.
+
+## Audit & proof
+
+- **audit_event** — `id`, `actor_email`, `action` (`publish_results` | `rubric_update` | `batch_assign`), `detail`, `created_at`. Append-only organiser trail, shown on `/organize`.
+- **result_bundle** — `id`, `bundle_json` (canonical JSON), `digest` (SHA-256 hex), `created_at`. Written once at publish; served at `/results/verify` so the published ranking can be recomputed and checked.
+
 ## Relations of note
 
-- `Project.scores`, `Project.assignments`, `Project.review_events`, `Project.result` (one-to-one).
+- `Project.scores`, `Project.assignments`, `Project.review_events`, `Project.result` (one-to-one), `Project.votes`.
 - `User.judge_profile` is eagerly loaded by the auth middleware (`joinedload`) so role handlers can resolve the fixture id without extra queries.

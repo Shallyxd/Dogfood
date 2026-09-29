@@ -3,29 +3,90 @@
 {% block title %}DOGFOOD 2026 — Hackathon Portal{% endblock %}
 
 {% block content %}
-<div class="detail-card" style="background:#f8fafc; border-left:4px solid #0366d6; margin-bottom:24px;">
-  <h1 style="margin-top:0;">{{ event.name if event else "DOGFOOD 2026" }}</h1>
-  <p style="font-size:1.05rem; color:#24292e;">
-    A self-hostable hackathon portal: public project gallery, deadline-enforced submissions,
-    backend-enforced judge isolation, and bias-corrected rankings via per-judge z-score normalisation.
+<section class="detail-card" style="background:linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%); border:1px solid var(--gray-200); padding:36px 32px; margin-bottom:28px;">
+  <span class="badge badge-blue mb-3">Offline-first · single-box · no cloud</span>
+  <h1 style="font-size:2.1rem; font-weight:800; margin:10px 0 12px; max-width:680px;">
+    {{ event.name if event else "DOGFOOD 2026" }}
+  </h1>
+  <p style="font-size:1.06rem; color:var(--gray-700); max-width:640px; margin-bottom:24px;">
+    A self-hostable submission and judging portal: a public project gallery, deadline-enforced
+    entries, backend-enforced judge isolation, and bias-corrected rankings via per-judge
+    z-score normalisation.
   </p>
-  <p>
-    <a href="/projects" class="btn btn-primary">Browse {{ project_count }} projects</a>
-    <a href="/results" class="btn">Results</a>
-  </p>
+  <div class="flex items-center gap-3 flex-wrap">
+    <a href="/projects" class="btn btn-primary">Browse {{ project_count }} project{{ 's' if project_count != 1 else '' }}</a>
+    <a href="/results" class="btn">View results</a>
+    {% if not user %}<a href="/login" class="btn">Sign in</a>{% endif %}
+  </div>
+</section>
+
+<div class="grid-cards mb-6">
+  <div class="stat-card">
+    <div class="stat-label">Projects</div>
+    <div style="font-size:1.8rem; font-weight:800; color:var(--gray-900); margin-top:4px;">{{ project_count }}</div>
+    <div class="text-xs text-muted">In the public gallery</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Deadline enforcement</div>
+    <div style="font-size:1.8rem; font-weight:800; color:var(--gray-900); margin-top:4px;">422</div>
+    <div class="text-xs text-muted">Late submissions refused server-side</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Judge isolation</div>
+    <div style="font-size:1.8rem; font-weight:800; color:var(--gray-900); margin-top:4px;">403</div>
+    <div class="text-xs text-muted">Peer scores unreachable via API</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Results</div>
+    <div style="font-size:1.8rem; font-weight:800; color:var(--gray-900); margin-top:4px;">Immutable</div>
+    <div class="text-xs text-muted">Re-publish blocked with 409</div>
+  </div>
 </div>
 
-<h2>How it works</h2>
-<ul>
-  <li><strong>Participants</strong> submit projects to a track before the deadline — late submissions are refused server-side (HTTP 422).</li>
-  <li><strong>Judges</strong> score only their assigned projects on functionality, quality and innovation (2–5). Peer scores are unreachable — enforced in the route, not the UI.</li>
-  <li><strong>Organisers</strong> batch-assign judges, tune rubric weights, and publish an immutable ranking snapshot (re-publish is blocked with HTTP 409).</li>
-</ul>
+<h2 class="section-title">How it works</h2>
+<div class="grid-cards mb-6">
+  <div class="card">
+    <div class="card-body">
+      <span class="badge badge-green mb-3">Participants</span>
+      <h3 style="margin:0 0 6px; font-size:1.02rem;">Submit before the deadline</h3>
+      <p class="text-sm text-muted" style="margin:0;">
+        Create a team, build an invite link, and submit a project to a track. Late entries are
+        refused server-side with HTTP 422 — the deadline is real, not cosmetic.
+      </p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <span class="badge badge-blue mb-3">Judges</span>
+      <h3 style="margin:0 0 6px; font-size:1.02rem;">Calibrate, review, score</h3>
+      <p class="text-sm text-muted" style="margin:0;">
+        Score only your assigned projects on functionality, quality and innovation. A calibration
+        mirror shows your scale against the pool — and every artefact you open is receipted.
+      </p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <span class="badge badge-purple mb-3">Organisers</span>
+      <h3 style="margin:0 0 6px; font-size:1.02rem;">Normalise and publish</h3>
+      <p class="text-sm text-muted" style="margin:0;">
+        Batch-assign judges, tune rubric weights, watch progress, then publish an immutable
+        ranking snapshot. Export CSV at every stage.
+      </p>
+    </div>
+  </div>
+</div>
 
-<h2>Sign in</h2>
-<p>
-  Demo logins are deterministic tokens from <code>.dogfood.toml</code>:
-  <code>/login/&lt;token&gt;</code> (organizer <code>org_7f2a</code>, judge <code>jdg_a_91bc</code>, participant <code>prt_2e88</code>).
-  See <code>THREAT-MODEL.md</code> for what this auth does and does not protect.
-</p>
+<h2 class="section-title">Demo sign-in</h2>
+<div class="alert alert-warning">
+  <span style="font-size:1.2rem;">🔑</span>
+  <div>
+    <strong>Deterministic tokens from <code>.dogfood.toml</code>.</strong>
+    <p class="text-sm" style="margin:6px 0 0;">
+      Organizer <code>org_7f2a</code>, Judge <code>jdg_a_91bc</code>, Participant <code>prt_2e88</code>.
+      Visit <a href="/login">/login</a> to pick a role. See <code>THREAT-MODEL.md</code> for what this
+      demo-grade auth does and does not protect.
+    </p>
+  </div>
+</div>
 {% endblock %}

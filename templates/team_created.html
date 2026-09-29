@@ -3,16 +3,30 @@
 {% block title %}Team Created — DOGFOOD 2026{% endblock %}
 
 {% block content %}
-<div class="alert alert-success">
-  <strong>Team "{{ team.name }}" created successfully!</strong>
-</div>
-
-<div class="detail-card" style="max-width: 600px;">
-  <h2>Invite Teammates</h2>
-  <p>Share this invite link with your team members:</p>
-  <div style="background:#f4f4f4; padding:12px; border-radius:4px; font-family:monospace; margin-bottom:16px; word-break:break-all;">
-    {{ invite_url }}
+<div style="max-width:580px; margin:0 auto;">
+  <div class="alert alert-success mb-4">
+    <span style="font-size:1.2rem;">🎉</span>
+    <div>
+      <strong>Team &ldquo;{{ team.name }}&rdquo; created successfully!</strong>
+      <div class="text-xs" style="margin-top:2px;">Your team is registered. Share the invite link below.</div>
+    </div>
   </div>
-  <p><a href="{{ invite_url }}" class="btn">Test Join Link</a> <a href="/projects" class="btn btn-primary">Go to Gallery</a></p>
+
+  <div class="card mb-4">
+    <div class="card-body" style="padding:28px;">
+      <h2 style="font-size:1.2rem; font-weight:800; margin:0 0 8px 0;">Invite Teammates</h2>
+      <p class="text-sm text-muted mb-3">Teammates can join by opening this unique invite link in their browser:</p>
+
+      <div class="mono" style="background:var(--gray-100); border:1px solid var(--gray-200); padding:12px 14px; border-radius:var(--radius); font-size:.875rem; word-break:break-all; color:var(--gray-900); margin-bottom:20px;">
+        {{ invite_url }}
+      </div>
+
+      <div class="flex gap-2 flex-wrap">
+        <a href="{{ invite_url }}" class="btn btn-sm">Test join link &rarr;</a>
+        <a href="/projects/new" class="btn btn-primary btn-sm">Submit project now &rarr;</a>
+        <a href="/projects" class="btn btn-sm">View gallery</a>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
